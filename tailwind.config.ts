@@ -132,6 +132,42 @@ export default {
           '0%': { transform: 'translateY(-100%)' },
           '100%': { transform: 'translateY(200%)' },
         },
+        'pulse-slow': {
+          '0%, 100%': { opacity: '0.5' },
+          '50%': { opacity: '1', transform: 'scale(1.02)' },
+        },
+        'pulse-glow': {
+          '0%, 100%': { boxShadow: '0 0 20px hsl(var(--primary)), inset 0 0 10px hsl(var(--primary))' },
+          '50%': { boxShadow: '0 0 35px hsl(var(--primary)), inset 0 0 15px hsl(var(--primary))' },
+        },
+        'waveform': {
+          '0%, 100%': { transform: 'scale(0.95)', borderWidth: '1px', opacity: '0.7' },
+          '50%': { transform: 'scale(1.05)', borderWidth: '2px', opacity: '0.3' },
+        },
+        'scanline-rotate': {
+          'from': { transform: 'rotate(0deg)' },
+          'to': { transform: 'rotate(360deg)' },
+        },
+        'ripple-out': {
+          'from': { transform: 'scale(0.7)', opacity: '0.5' },
+          'to': { transform: 'scale(1.2)', opacity: '0' },
+        },
+        'particle-float': {
+          '0%': { transform: 'translateY(0px) translateX(0px) scale(1)', opacity: '0.7' },
+          '50%': { transform: 'translateY(-20px) translateX(5px) scale(1.2)', opacity: '1' },
+          '100%': { transform: 'translateY(0px) translateX(0px) scale(1)', opacity: '0.7' },
+        },
+        'holo-float': {
+          '0%': { transform: 'translateY(50px) rotate(0deg)', opacity: '0' },
+          '50%': { opacity: '0.3' },
+          '100%': { transform: 'translateY(-50px) rotate(30deg)', opacity: '0' },
+        },
+        'fade-in-out': {
+          '0%': { opacity: '0' },
+          '20%': { opacity: '1' },
+          '80%': { opacity: '1' },
+          '100%': { opacity: '0' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
@@ -143,6 +179,14 @@ export default {
         'particle-in': 'particle-in var(--duration) cubic-bezier(0.25, 1, 0.5, 1) var(--delay) forwards',
         'text-in': 'text-in 1.5s cubic-bezier(0.215, 0.610, 0.355, 1.000) 2.5s forwards',
         'scanline': 'scanline 1s linear 3s',
+        'pulse-slow': 'pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        'pulse-glow': 'pulse-glow 1.5s ease-in-out infinite',
+        'waveform': 'waveform 1.2s ease-in-out infinite',
+        'scanline-rotate': 'scanline-rotate 3s linear infinite',
+        'ripple-out': 'ripple-out 1.5s ease-out forwards',
+        'particle-float': 'particle-float linear infinite',
+        'holo-float': 'holo-float 4s ease-in-out infinite',
+        'fade-in-out': 'fade-in-out forwards',
       },
     },
   },
