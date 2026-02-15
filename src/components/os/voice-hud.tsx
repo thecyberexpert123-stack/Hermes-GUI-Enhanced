@@ -20,6 +20,7 @@ const VoiceHUD = ({ closeDialog }: VoiceHUDProps) => {
   const coreRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
     const newParticles = Array.from({ length: 100 }).map(() => {
       const angle = Math.random() * 2 * Math.PI;
       const radius = 50 + Math.random() * 250;
@@ -121,7 +122,15 @@ const VoiceHUD = ({ closeDialog }: VoiceHUDProps) => {
         <div ref={coreRef} className="relative h-full w-full transition-transform duration-300 ease-out" style={{ transformStyle: 'preserve-3d' }}>
           
           <div className="absolute inset-0 rounded-full bg-primary/5 blur-3xl animate-pulse-slow" style={{ transform: 'translateZ(-150px)' }} />
-          <div className="absolute inset-0 animate-circuit-pulse [background-image:radial-gradient(hsl(var(--primary)/0.1)_1px,transparent_1px)] [background-size:1.5rem_1.5rem]" style={{ transform: 'translateZ(-100px)' }} />
+          <div
+            className="absolute inset-0"
+            style={{ 
+              transform: 'translateZ(-100px)',
+              maskImage: 'radial-gradient(circle at center, white 20%, transparent 70%)' 
+            }}
+          >
+            <div className="absolute inset-0 animate-circuit-pulse [background-image:radial-gradient(hsl(var(--primary)/0.1)_1px,transparent_1px)] [background-size:1.5rem_1.5rem]" />
+          </div>
 
           <div className={cn("absolute inset-0 transition-transform duration-1000", status === 'thinking' ? 'animate-particle-swirl' : '')} style={{ transform: 'translateZ(-80px)', transformStyle: 'preserve-3d' }}>
             {particles.slice(0, 40).map((style, i) => (
