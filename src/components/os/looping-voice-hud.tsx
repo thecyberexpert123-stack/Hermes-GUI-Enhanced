@@ -108,11 +108,6 @@ const LoopingVoiceHUD = () => {
           {/* Layer 0: Background Glow */}
           <div className="absolute inset-0 rounded-full bg-primary/10 blur-3xl animate-pulse" style={{ transform: 'translateZ(-100px)' }} />
 
-          {/* Layer 1: Hologram Grid */}
-          <div className={cn("absolute inset-0 opacity-0 transition-opacity duration-1000", status === 'thinking' && 'opacity-100')} style={{ transform: 'translateZ(-80px)' }}>
-            <div className="h-full w-full animate-flicker-soft [background-image:radial-gradient(hsl(var(--primary)/0.2)_1px,transparent_1px)] [background-size:0.75rem_0.75rem]" />
-          </div>
-
           {/* Layer 2: Drifting Particles */}
           <div className="absolute inset-0" style={{ transform: 'translateZ(-50px)' }}>
             {particles.slice(0, 20).map((style, i) => (
@@ -150,14 +145,17 @@ const LoopingVoiceHUD = () => {
             
             {/* THINKING */}
             <div className={cn("absolute inset-0 transition-opacity duration-500", status === 'thinking' ? 'opacity-100' : 'opacity-0')}>
-               <div className="absolute inset-[28%] animate-[spin_2s_linear_infinite]">
+               {/* Dual scanner lines */}
+               <div className="absolute inset-[28%] animate-[spin_4s_linear_infinite]">
                   <div className="absolute top-0 left-1/2 -translate-x-1/2 h-1/2 w-px bg-gradient-to-b from-accent to-transparent" />
                </div>
-               <div className="absolute inset-[20%] animate-[spin_4s_linear_infinite_reverse]">
-                  <div className="absolute bottom-0 left-1/2 -translate-x-1/2 h-1/3 w-px bg-gradient-to-t from-primary/50 to-transparent" />
+               <div className="absolute inset-[28%] animate-[spin_6s_linear_infinite_reverse]">
+                  <div className="absolute bottom-0 left-1/2 -translate-x-1/2 h-1/2 w-px bg-gradient-to-t from-accent to-transparent" />
                </div>
+               
+               {/* Floating Glyphs */}
                {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="absolute text-primary/30 animate-glyph-float" style={{
+                <div key={i} className="absolute text-primary/20 animate-glyph-float" style={{
                   left: `${10 + i * 18}%`,
                   height: `${15 + (i%3)*5}px`,
                   animationDelay: `${i * 0.8}s`,
@@ -166,6 +164,10 @@ const LoopingVoiceHUD = () => {
                   <Hexagon />
                 </div>
                ))}
+
+               {/* Hologram Grid */}
+              <div className="h-full w-full animate-flicker-soft [background-image:radial-gradient(hsl(var(--primary)/0.1)_1px,transparent_1px)] [background-size:0.75rem_0.75rem]" style={{ transform: 'translateZ(-80px)' }} />
+
             </div>
 
             {/* SPEAKING */}
