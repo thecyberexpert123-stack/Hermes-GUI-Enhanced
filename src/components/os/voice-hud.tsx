@@ -131,6 +131,9 @@ const VoiceHUD = ({ closeDialog }: VoiceHUDProps) => {
           <div className="absolute inset-0 rounded-full border-2 border-primary/70" />
           <div className="absolute inset-1.5 rounded-full border border-dashed border-accent/50 animate-[spin_5s_linear_infinite_reverse]" />
           <div className="w-16 h-16 rounded-full bg-primary/20 border-2 border-primary animate-pulse-glow" style={{ boxShadow: '0 0 20px hsl(var(--primary)), inset 0 0 10px hsl(var(--primary))' }} />
+          <span className={cn("absolute text-xl font-bold tracking-[0.2em] text-primary/90 [text-shadow:0_0_8px_hsl(var(--primary))]", orbitron.className)}>
+            JARVIS
+          </span>
         </div>
       </div>
 
