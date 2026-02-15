@@ -142,7 +142,7 @@ const VoiceHUD = ({ closeDialog }: VoiceHUDProps) => {
               <svg viewBox="-100 -100 200 200" className="h-full w-full origin-center animate-pulse-slow">
                 {Array.from({ length: 80 }).map((_, i) => (
                   <rect key={i} x="-1" y="-90" width="2" rx="1" fill="hsl(var(--accent))" transform={`rotate(${i * 4.5})`}
-                    className="origin-center animate-waveform-bar" style={{ animationDelay: `${i * 0.02}s` }} />
+                    className="animate-waveform-bar" style={{ animationDelay: `${i * 0.02}s` }} />
                 ))}
               </svg>
               {/* Inward particles */}
