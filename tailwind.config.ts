@@ -133,34 +133,12 @@ export default {
           '100%': { transform: 'translateY(200%)' },
         },
         'pulse-slow': {
-          '0%, 100%': { opacity: '0.5' },
+          '0%, 100%': { opacity: '0.5', transform: 'scale(1)' },
           '50%': { opacity: '1', transform: 'scale(1.02)' },
         },
         'pulse-glow': {
           '0%, 100%': { boxShadow: '0 0 20px hsl(var(--primary)), inset 0 0 10px hsl(var(--primary))' },
           '50%': { boxShadow: '0 0 35px hsl(var(--primary)), inset 0 0 15px hsl(var(--primary))' },
-        },
-        'waveform': {
-          '0%, 100%': { transform: 'scale(0.95)', borderWidth: '1px', opacity: '0.7' },
-          '50%': { transform: 'scale(1.05)', borderWidth: '2px', opacity: '0.3' },
-        },
-        'scanline-rotate': {
-          'from': { transform: 'rotate(0deg)' },
-          'to': { transform: 'rotate(360deg)' },
-        },
-        'ripple-out': {
-          'from': { transform: 'scale(0.7)', opacity: '0.5' },
-          'to': { transform: 'scale(1.2)', opacity: '0' },
-        },
-        'particle-float': {
-          '0%': { transform: 'translateY(0px) translateX(0px) scale(1)', opacity: '0.7' },
-          '50%': { transform: 'translateY(-20px) translateX(5px) scale(1.2)', opacity: '1' },
-          '100%': { transform: 'translateY(0px) translateX(0px) scale(1)', opacity: '0.7' },
-        },
-        'holo-float': {
-          '0%': { transform: 'translateY(50px) rotate(0deg)', opacity: '0' },
-          '50%': { opacity: '0.3' },
-          '100%': { transform: 'translateY(-50px) rotate(30deg)', opacity: '0' },
         },
         'fade-in-out': {
           '0%': { opacity: '0' },
@@ -169,8 +147,8 @@ export default {
           '100%': { opacity: '0' },
         },
         'flicker': {
-          '0%, 100%': { opacity: '1' },
-          '50%': { opacity: '0.3' },
+          '0%, 100%': { opacity: '1', 'border-color': 'hsl(var(--accent) / 0.8)' },
+          '50%': { opacity: '0.3', 'border-color': 'hsl(var(--accent) / 0.3)' },
         },
         'grid-pulse': {
           '0%': { opacity: 0, transform: 'scale(1)' },
@@ -180,6 +158,41 @@ export default {
         'orbit': {
           from: { transform: 'rotate(0deg)' },
           to: { transform: 'rotate(360deg)' },
+        },
+        'breathing-glow': {
+          '0%, 100%': {
+            boxShadow: '0 0 40px 10px hsl(var(--primary) / 0.4), inset 0 0 10px hsl(var(--primary) / 0.5)',
+            opacity: '0.8',
+          },
+          '50%': {
+            boxShadow: '0 0 60px 15px hsl(var(--primary) / 0.6), inset 0 0 15px hsl(var(--primary) / 0.7)',
+            opacity: '1',
+          },
+        },
+        'scanner-rotate': {
+          from: { transform: 'rotate(0deg)' },
+          to: { transform: 'rotate(360deg)' },
+        },
+        'glyph-fall': {
+          'from': { transform: 'translateY(-40px) rotate(0deg)', opacity: '0' },
+          'to': { transform: 'translateY(40px) rotate(60deg)', opacity: '0.2' },
+        },
+        'ripple-out-speak': {
+          'from': { transform: 'scale(0.8)', opacity: '0.7' },
+          'to': { transform: 'scale(1.5)', opacity: '0' },
+        },
+        'waveform-bar': {
+          '0%, 100%': { height: '4px', opacity: '0.4' },
+          '50%': { height: '12px', opacity: '1' },
+        },
+        'particle-drift': {
+          from: { transform: 'translateX(var(--x-start)) translateY(var(--y-start))', opacity: 0 },
+          '20%, 80%': { opacity: 1 },
+          to: { transform: 'translateX(var(--x-end)) translateY(var(--y-end))', opacity: 0 },
+        },
+        'flicker-soft': {
+          '0%, 100%': { opacity: '0.05' },
+          '50%': { opacity: '0.1' },
         },
       },
       animation: {
@@ -194,15 +207,17 @@ export default {
         'scanline': 'scanline 1s linear 3s',
         'pulse-slow': 'pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'pulse-glow': 'pulse-glow 1.5s ease-in-out infinite',
-        'waveform': 'waveform 1.2s ease-in-out infinite',
-        'scanline-rotate': 'scanline-rotate 3s linear infinite',
-        'ripple-out': 'ripple-out 1.5s ease-out forwards',
-        'particle-float': 'particle-float linear infinite',
-        'holo-float': 'holo-float 4s ease-in-out infinite',
         'fade-in-out': 'fade-in-out forwards',
         'flicker': 'flicker 2s linear infinite',
         'grid-pulse': 'grid-pulse 6s ease-in-out infinite',
-        'orbit': 'orbit 20s linear infinite',
+        'orbit': 'orbit var(--duration, 20s) linear infinite var(--delay, 0s)',
+        'breathing-glow': 'breathing-glow 4s ease-in-out infinite',
+        'scanner-rotate': 'scanner-rotate var(--speed, 8s) linear infinite',
+        'glyph-fall': 'glyph-fall 5s linear infinite',
+        'ripple-out-speak': 'ripple-out-speak 1.2s ease-out forwards',
+        'waveform-bar': 'waveform-bar 0.8s ease-in-out infinite alternate',
+        'particle-drift': 'particle-drift var(--duration, 20s) linear infinite alternate var(--delay, 0s)',
+        'flicker-soft': 'flicker-soft 3s linear infinite',
       },
     },
   },
