@@ -142,44 +142,57 @@ export default {
           '0%, 100%': { opacity: '1', 'border-color': 'hsl(var(--accent) / 0.8)' },
           '50%': { opacity: '0.3', 'border-color': 'hsl(var(--accent) / 0.3)' },
         },
+        'holographic-flicker': {
+          '0%, 100%': { opacity: '1', 'border-color': 'hsl(var(--primary))' },
+          '50%': { opacity: '0.6', 'border-color': 'hsl(var(--primary) / 0.5)' },
+        },
         'orbit': {
           from: { transform: 'rotate(0deg)' },
           to: { transform: 'rotate(360deg)' },
         },
         'breathing-glow': {
           '0%, 100%': {
-            boxShadow: '0 0 40px 10px hsl(var(--primary) / 0.4), inset 0 0 10px hsl(var(--primary) / 0.5)',
-            opacity: '0.8',
+            boxShadow: '0 0 50px 12px hsl(var(--primary) / 0.3), inset 0 0 15px hsl(var(--primary) / 0.4)',
+            opacity: '0.9',
           },
           '50%': {
-            boxShadow: '0 0 60px 15px hsl(var(--primary) / 0.6), inset 0 0 15px hsl(var(--primary) / 0.7)',
+            boxShadow: '0 0 70px 18px hsl(var(--primary) / 0.5), inset 0 0 20px hsl(var(--primary) / 0.6)',
             opacity: '1',
           },
         },
-        'scanner-rotate': {
+        'scanner-line-rotate': {
           from: { transform: 'rotate(0deg)' },
           to: { transform: 'rotate(360deg)' },
         },
-        'glyph-float': {
-          '0%, 100%': { transform: 'translateY(-15px) rotate(-5deg)', opacity: '0.1' },
-          '50%': { transform: 'translateY(15px) rotate(5deg)', opacity: '0.3' },
+        'scanner-line-fade': {
+          '0%, 100%': { opacity: '0' },
+          '20%, 80%': { opacity: '1' },
         },
-        'ripple-out-speak': {
-          'from': { transform: 'scale(0.8)', opacity: '0.7' },
-          'to': { transform: 'scale(1.5)', opacity: '0' },
+        'glyph-float': {
+          '0%, 100%': { transform: 'translateY(-20px) rotate(-5deg)', opacity: '0.1' },
+          '50%': { transform: 'translateY(20px) rotate(5deg)', opacity: '0.3' },
+        },
+        'speaking-ripple': {
+          'from': { transform: 'scale(0.7)', opacity: '0.8' },
+          'to': { transform: 'scale(1.6)', opacity: '0' },
+        },
+        'energy-pulse': {
+          '0%': { transform: 'scale(0.9)', opacity: '0' },
+          '50%': { opacity: '0.3' },
+          '100%': { transform: 'scale(1.4)', opacity: '0' },
         },
         'waveform-bar': {
-          '0%, 100%': { height: '4px', opacity: '0.4' },
-          '50%': { height: '12px', opacity: '1' },
+          '0%, 100%': { height: '3px', opacity: '0.4' },
+          '50%': { height: '15px', opacity: '1' },
         },
         'particle-drift': {
-          from: { transform: 'translate(var(--x-start), var(--y-start))', opacity: 0 },
-          '20%, 80%': { opacity: 1 },
-          to: { transform: 'translate(var(--x-end), var(--y-end))', opacity: 0 },
+          from: { transform: 'translate(var(--x-start), var(--y-start))', opacity: '0' },
+          '20%, 80%': { opacity: '1' },
+          to: { transform: 'translate(var(--x-end), var(--y-end))', opacity: '0' },
         },
         'particle-suck-in': {
             'from': {
-                transform: 'translate(var(--x-start), var(--y-start)) scale(1.5)',
+                transform: 'translate(var(--x-start), var(--y-start)) scale(1.2)',
                 opacity: '1'
             },
             'to': {
@@ -187,9 +200,13 @@ export default {
                 opacity: '0'
             }
         },
-        'flicker-soft': {
-          '0%, 100%': { opacity: '0.05' },
-          '50%': { opacity: '0.1' },
+        'particle-swirl': {
+          from: { transform: 'rotate(0deg) scale(1)' },
+          to: { transform: 'rotate(-360deg) scale(1.1)' }
+        },
+        'circuit-pulse': {
+          '0%, 100%': { 'background-color': 'hsl(var(--primary)/0.05)' },
+          '50%': { 'background-color': 'hsl(var(--primary)/0.15)' }
         },
       },
       animation: {
@@ -201,18 +218,22 @@ export default {
         'particle-in': 'particle-in var(--duration) cubic-bezier(0.25, 1, 0.5, 1) var(--delay) forwards',
         'text-in': 'text-in 1.5s cubic-bezier(0.215, 0.610, 0.355, 1.000) 2.5s forwards',
         'scanline': 'scanline 1s linear 3s',
-        'pulse-slow': 'pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        'pulse-slow': 'pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'fade-in-out': 'fade-in-out forwards',
-        'flicker': 'flicker 2s linear infinite',
+        'flicker': 'flicker 2.5s linear infinite',
+        'holographic-flicker': 'holographic-flicker 3s linear infinite',
         'orbit': 'orbit var(--duration, 20s) linear infinite var(--delay, 0s)',
         'breathing-glow': 'breathing-glow 4s ease-in-out infinite',
-        'scanner-rotate': 'scanner-rotate var(--speed, 8s) linear infinite',
+        'scanner-line-rotate': 'scanner-line-rotate var(--speed, 8s) linear infinite',
+        'scanner-line-fade': 'scanner-line-fade calc(var(--speed, 8s) / 2) ease-in-out infinite',
         'glyph-float': 'glyph-float var(--duration, 5s) ease-in-out infinite alternate var(--delay, 0s)',
-        'ripple-out-speak': 'ripple-out-speak 1.2s ease-out forwards',
+        'speaking-ripple': 'speaking-ripple 1.5s cubic-bezier(0.22, 1, 0.36, 1) forwards',
+        'energy-pulse': 'energy-pulse 1.5s ease-out infinite',
         'waveform-bar': 'waveform-bar 0.8s ease-in-out infinite alternate',
         'particle-drift': 'particle-drift var(--duration, 20s) linear infinite alternate var(--delay, 0s)',
         'particle-suck-in': 'particle-suck-in forwards',
-        'flicker-soft': 'flicker-soft 3s linear infinite',
+        'particle-swirl': 'particle-swirl 6s ease-in-out forwards',
+        'circuit-pulse': 'circuit-pulse 5s ease-in-out infinite',
       },
     },
   },
