@@ -153,9 +153,35 @@ const VoiceHUD = ({ closeDialog }: VoiceHUDProps) => {
                     `,
                     backgroundSize: '1.5rem 1.5rem',
                 }} />
-                <div className="absolute w-full h-full animate-scanline-rotate">
-                    <div className="h-full w-px bg-gradient-to-b from-transparent via-accent to-transparent" />
-                </div>
+                <svg viewBox="0 0 200 200" className="absolute w-[65%] h-[65%] opacity-60">
+                    <defs>
+                        <filter id="glow-filter" x="-100%" y="-100%" width="300%" height="300%">
+                            <feGaussianBlur stdDeviation="1.5" result="coloredBlur"/>
+                            <feMerge>
+                                <feMergeNode in="coloredBlur"/>
+                                <feMergeNode in="SourceGraphic"/>
+                            </feMerge>
+                        </filter>
+                    </defs>
+                    <circle id="p1" cx="100" cy="100" r="80" fill="none" stroke="hsl(var(--primary)/0.1)" strokeWidth="0.5" />
+                    <circle id="p2" cx="100" cy="100" r="60" fill="none" stroke="hsl(var(--primary)/0.1)" strokeWidth="0.5" />
+                    
+                    <circle r="3" fill="hsl(var(--accent))" filter="url(#glow-filter)">
+                        <animateMotion dur="4s" repeatCount="indefinite" rotate="auto">
+                            <mpath href="#p1" />
+                        </animateMotion>
+                    </circle>
+                    <circle r="2" fill="hsl(var(--primary))" filter="url(#glow-filter)">
+                        <animateMotion dur="6s" repeatCount="indefinite" rotate="auto" begin="-2s">
+                            <mpath href="#p1" />
+                        </animateMotion>
+                    </circle>
+                    <circle r="3" fill="hsl(var(--accent))" filter="url(#glow-filter)">
+                        <animateMotion dur="5s" repeatCount="indefinite" rotate="auto" begin="-3s">
+                            <mpath href="#p2" />
+                        </animateMotion>
+                    </circle>
+                </svg>
                 {/* Holographic Geometry */}
                 {holoGeometries.map((style, i) => (
                     <div key={i} className="absolute text-primary/20 animate-holo-float" style={style}>
