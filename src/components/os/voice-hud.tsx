@@ -15,8 +15,26 @@ interface VoiceHUDProps {
 const VoiceHUD = ({ closeDialog }: VoiceHUDProps) => {
   const [status, setStatus] = useState<AiStatus>('listening');
   const [show, setShow] = useState(true);
+  const [particles, setParticles] = useState<React.CSSProperties[]>([]);
+  const [holoGeometries, setHoloGeometries] = useState<React.CSSProperties[]>([]);
 
   useEffect(() => {
+    const newParticles = Array.from({ length: 50 }).map(() => ({
+        width: `${Math.random() * 2 + 1}px`,
+        height: `${Math.random() * 2 + 1}px`,
+        left: `${Math.random() * 100}%`,
+        top: `${Math.random() * 100}%`,
+        animationDelay: `${Math.random() * 5}s`,
+        animationDuration: `${Math.random() * 10 + 5}s`,
+    }));
+    setParticles(newParticles);
+
+    const newHoloGeometries = Array.from({ length: 10 }).map((_, i) => ({
+      animationDelay: `${i * 0.5}s`,
+      left: `${Math.random() * 80 + 10}%`,
+    }));
+    setHoloGeometries(newHoloGeometries);
+
     const sequence = async () => {
       setStatus('listening');
       await new Promise(resolve => setTimeout(resolve, 4000));
@@ -57,18 +75,11 @@ const VoiceHUD = ({ closeDialog }: VoiceHUDProps) => {
 
       {/* Particle Effects */}
       <div className="absolute w-full h-full overflow-hidden rounded-full">
-        {Array.from({ length: 50 }).map((_, i) => (
+        {particles.map((style, i) => (
           <div
             key={i}
             className="absolute bg-accent rounded-full animate-particle-float"
-            style={{
-              width: `${Math.random() * 2 + 1}px`,
-              height: `${Math.random() * 2 + 1}px`,
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-              animationDelay: `${Math.random() * 5}s`,
-              animationDuration: `${Math.random() * 10 + 5}s`,
-            }}
+            style={style}
           />
         ))}
       </div>
@@ -95,8 +106,8 @@ const VoiceHUD = ({ closeDialog }: VoiceHUDProps) => {
                     <div className="h-full w-px bg-gradient-to-b from-transparent via-accent to-transparent" />
                 </div>
                 {/* Holographic Geometry */}
-                {Array.from({ length: 10 }).map((_, i) => (
-                    <div key={i} className="absolute text-primary/20 animate-holo-float" style={{ animationDelay: `${i * 0.5}s`, left: `${Math.random() * 80 + 10}%`}}>
+                {holoGeometries.map((style, i) => (
+                    <div key={i} className="absolute text-primary/20 animate-holo-float" style={style}>
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
                            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4a2 2 0 0 0 1-1.73z"></path>
                         </svg>

@@ -2,22 +2,27 @@
 
 import { cn } from '@/lib/utils';
 import { Orbitron } from 'next/font/google';
+import { useState, useEffect } from 'react';
 
 const orbitron = Orbitron({ subsets: ['latin'] });
 
 const StartupAnimation = () => {
+  const [particles, setParticles] = useState<React.CSSProperties[]>([]);
   const particleCount = 50;
 
-  const particles = Array.from({ length: particleCount }).map((_, i) => {
-    const angle = (i / particleCount) * Math.PI * 2;
-    const radius = 90 + Math.random() * 20;
-    return {
-      '--angle': `${angle}rad`,
-      '--radius': `${radius}px`,
-      '--delay': `${Math.random() * 1}s`,
-      '--duration': `${2 + Math.random() * 1}s`,
-    } as React.CSSProperties;
-  });
+  useEffect(() => {
+    const newParticles = Array.from({ length: particleCount }).map((_, i) => {
+      const angle = (i / particleCount) * Math.PI * 2;
+      const radius = 90 + Math.random() * 20;
+      return {
+        '--angle': `${angle}rad`,
+        '--radius': `${radius}px`,
+        '--delay': `${Math.random() * 1}s`,
+        '--duration': `${2 + Math.random() * 1}s`,
+      } as React.CSSProperties;
+    });
+    setParticles(newParticles);
+  }, []);
 
   return (
     <div className="flex flex-col items-center justify-center gap-8 text-primary">
