@@ -4,7 +4,8 @@ import useSystemMetrics from '@/hooks/use-system-metrics';
 import CentralCore from './central-core';
 import SystemMetricsPanel from './system-metrics-panel';
 import SystemAnalysisPanel from './system-analysis-panel';
-import { Grid } from 'lucide-react';
+import { Grid, MessageSquare } from 'lucide-react';
+import { type AppMode } from '@/app/page';
 
 // A replacement for the 'Corner' icon that was removed from lucide-react.
 const Corner = (props: React.HTMLAttributes<SVGElement>) => (
@@ -18,7 +19,7 @@ const Corner = (props: React.HTMLAttributes<SVGElement>) => (
   </svg>
 );
 
-const HUD = () => {
+const HUD = ({ setMode }: { setMode: (mode: AppMode) => void }) => {
   const { metrics, analysis, isAnalyzing } = useSystemMetrics();
 
   return (
@@ -47,9 +48,14 @@ const HUD = () => {
       </div>
 
       {/* Top Header */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-2 text-primary tracking-widest text-sm">
-        <Grid size={16} />
-        <span>NEON OS v1.0</span>
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-4 text-primary tracking-widest text-sm">
+        <div className="flex items-center gap-2">
+            <Grid size={16} />
+            <span>NEON OS v1.0</span>
+        </div>
+        <button onClick={() => setMode('chat')} className="transition-colors hover:text-accent" title="Switch to Chat Mode">
+            <MessageSquare size={16} />
+        </button>
       </div>
     </div>
   );
