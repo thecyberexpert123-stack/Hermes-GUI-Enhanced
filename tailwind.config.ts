@@ -168,6 +168,19 @@ export default {
           '80%': { opacity: '1' },
           '100%': { opacity: '0' },
         },
+        'flicker': {
+          '0%, 100%': { opacity: '1' },
+          '50%': { opacity: '0.3' },
+        },
+        'grid-pulse': {
+          '0%': { opacity: 0, transform: 'scale(1)' },
+          '50%': { opacity: 0.1, transform: 'scale(1.05)' },
+          '100%': { opacity: 0, transform: 'scale(1)' },
+        },
+        'orbit': {
+          from: { transform: 'rotate(0deg)' },
+          to: { transform: 'rotate(360deg)' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
@@ -187,6 +200,9 @@ export default {
         'particle-float': 'particle-float linear infinite',
         'holo-float': 'holo-float 4s ease-in-out infinite',
         'fade-in-out': 'fade-in-out forwards',
+        'flicker': 'flicker 2s linear infinite',
+        'grid-pulse': 'grid-pulse 6s ease-in-out infinite',
+        'orbit': 'orbit 20s linear infinite',
       },
     },
   },

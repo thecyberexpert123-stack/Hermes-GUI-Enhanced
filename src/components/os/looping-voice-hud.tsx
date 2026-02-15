@@ -12,6 +12,7 @@ const LoopingVoiceHUD = () => {
   const [status, setStatus] = useState<AiStatus>('listening');
   const [particles, setParticles] = useState<React.CSSProperties[]>([]);
   const [holoGeometries, setHoloGeometries] = useState<React.CSSProperties[]>([]);
+  const [orbitingParticles, setOrbitingParticles] = useState<React.CSSProperties[]>([]);
 
   useEffect(() => {
     let isMounted = true;
@@ -31,6 +32,14 @@ const LoopingVoiceHUD = () => {
       left: `${Math.random() * 80 + 10}%`,
     }));
     if (isMounted) setHoloGeometries(newHoloGeometries);
+
+    const newOrbitingParticles = Array.from({ length: 15 }).map(() => ({
+      '--radius': `${Math.random() * 120 + 100}px`,
+      '--delay': `${Math.random() * 20}s`,
+      '--duration': `${Math.random() * 15 + 15}s`,
+      '--direction': Math.random() > 0.5 ? 'normal' : 'reverse',
+    } as React.CSSProperties));
+    if (isMounted) setOrbitingParticles(newOrbitingParticles);
 
     const sequence = async () => {
       while (isMounted) {
@@ -88,12 +97,36 @@ const LoopingVoiceHUD = () => {
           />
         ))}
       </div>
+      
+      {/* Orbiting Particles */}
+      <div className="absolute w-full h-full">
+        {orbitingParticles.map((style, i) => (
+          <div
+            key={`orbit-${i}`}
+            className="absolute inset-0"
+            style={{
+              animation: `orbit var(--duration) linear infinite`,
+              animationDelay: 'var(--delay)',
+              animationDirection: 'var(--direction)',
+              ...style
+            } as React.CSSProperties}
+          >
+            <div
+              className="absolute top-1/2 left-1/2 h-0.5 w-1 rounded-full bg-accent/70"
+              style={{
+                transform: 'translateX(var(--radius))',
+              }}
+            />
+          </div>
+        ))}
+      </div>
 
       {/* Core Rings */}
       <div className="relative w-80 h-80 flex items-center justify-center">
         {/* Ring Animations */}
         <div className="absolute w-full h-full rounded-full border-2 border-dashed border-primary/20 animate-[spin_40s_linear_infinite]" />
         <div className="absolute w-[85%] h-[85%] rounded-full border border-accent/30 animate-[spin_30s_linear_infinite_reverse]" />
+        <div className="absolute w-[75%] h-[75%] rounded-full border border-dashed border-accent/60 animate-flicker" />
         <div className="absolute w-[70%] h-[70%] rounded-full border-2 border-primary/50 animate-[spin_10s_linear_infinite]" />
         
         {/* Voice Visualization - Listening */}
@@ -107,6 +140,13 @@ const LoopingVoiceHUD = () => {
         {/* Thinking visualization */}
         {status === 'thinking' && (
             <>
+                <div className="absolute inset-0 rounded-full animate-grid-pulse" style={{
+                    backgroundImage: `
+                      linear-gradient(hsl(var(--primary) / 0.05) 1px, transparent 1px),
+                      linear-gradient(90deg, hsl(var(--primary) / 0.05) 1px, transparent 1px)
+                    `,
+                    backgroundSize: '1.5rem 1.5rem',
+                }} />
                 <div className="absolute w-full h-full animate-scanline-rotate">
                     <div className="h-full w-px bg-gradient-to-b from-transparent via-accent to-transparent" />
                 </div>
