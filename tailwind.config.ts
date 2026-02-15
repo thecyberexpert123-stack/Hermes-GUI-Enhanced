@@ -112,17 +112,22 @@ export default {
             opacity: '0',
           },
         },
-        'text-in': {
-          from: {
+        'jarvis-letter-in': {
+          '0%': {
             opacity: '0',
-            transform: 'translateY(10px)',
+            transform: 'translateY(20px) scale(0.8)',
             filter: 'blur(5px)',
           },
-          to: {
+          '40%': {
             opacity: '1',
-            transform: 'translateY(0)',
             filter: 'blur(0)',
+            textShadow: '0 0 25px hsl(var(--primary)), 0 0 10px hsl(var(--accent))'
           },
+          '100%': {
+            opacity: '1',
+            transform: 'translateY(0) scale(1)',
+            textShadow: 'none'
+          }
         },
         'scanline': {
           '0%': { transform: 'translateY(-100%)' },
@@ -216,7 +221,7 @@ export default {
         'spin-slow': 'spin-slow 25s linear infinite',
         'trace-in': 'trace-in 2s cubic-bezier(0.215, 0.610, 0.355, 1.000) 1s forwards',
         'particle-in': 'particle-in var(--duration) cubic-bezier(0.25, 1, 0.5, 1) var(--delay) forwards',
-        'text-in': 'text-in 1.5s cubic-bezier(0.215, 0.610, 0.355, 1.000) 2.5s forwards',
+        'jarvis-letter-in': 'jarvis-letter-in 1.2s cubic-bezier(0.215, 0.610, 0.355, 1.000) forwards',
         'scanline': 'scanline 1s linear 3s',
         'pulse-slow': 'pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'fade-in-out': 'fade-in-out forwards',

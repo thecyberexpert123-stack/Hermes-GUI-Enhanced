@@ -13,10 +13,10 @@ const SystemAnalysisPanel = ({ analysis, isAnalyzing }: SystemAnalysisPanelProps
   const title = analysis?.hasCriticalIssues ? 'CRITICAL ALERTS' : 'SYSTEM STATUS: NOMINAL';
 
   return (
-    <Card className="min-h-40 w-full max-w-2xl border-primary/20 bg-card backdrop-blur-sm xl:min-w-[600px]">
+    <Card className="min-h-40 w-full max-w-2xl border-primary/20 bg-card/70 backdrop-blur-sm shadow-[0_0_20px_hsl(var(--primary)/0.15),inset_0_0_5px_hsl(var(--primary)/0.1)] xl:min-w-[600px]">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-sm tracking-widest text-primary/80">
-          <Bot size={16} /> AI-POWERED SYSTEM ANALYSIS
+          <Bot size={16} /> J.A.R.V.I.S. // AI ANALYSIS
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">

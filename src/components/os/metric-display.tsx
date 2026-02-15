@@ -12,7 +12,7 @@ interface MetricDisplayProps {
 
 const MetricDisplay = ({ name, value, unit, status, icon }: MetricDisplayProps) => {
   return (
-    <Card className="w-64 border-primary/20 bg-card backdrop-blur-sm">
+    <Card className="w-64 border-primary/20 bg-card/70 backdrop-blur-sm shadow-[0_0_20px_hsl(var(--primary)/0.15),inset_0_0_5px_hsl(var(--primary)/0.1)]">
       <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium text-primary/80">{name}</CardTitle>
         <div className="text-primary [filter:drop-shadow(0_0_2px_hsl(var(--primary)))]">{icon}</div>

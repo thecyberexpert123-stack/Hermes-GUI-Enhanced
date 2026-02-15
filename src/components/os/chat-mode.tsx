@@ -29,7 +29,7 @@ const ChatMode = ({ setMode }: { setMode: (mode: AppMode) => void }) => {
 
             {/* Top Header */}
             <div className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-4 text-primary tracking-widest text-sm">
-                <button onClick={() => setMode('hud')} className="transition-colors hover:text-accent" title="Switch to HUD Mode">
+                <button onClick={() => setMode('hud')} className="rounded-md p-1 transition-all hover:bg-primary/10 hover:text-accent hover:shadow-[0_0_15px_hsl(var(--primary)/0.3)]" title="Switch to HUD Mode">
                     <Grid size={16} />
                 </button>
                 <div className="flex items-center gap-2">
@@ -43,14 +43,16 @@ const ChatMode = ({ setMode }: { setMode: (mode: AppMode) => void }) => {
             </div>
 
             <div className="w-full max-w-2xl pb-8">
-                <form className="relative">
-                    <Input
-                        placeholder="Type your message to Neon OS..."
-                        className="h-12 w-full rounded-full border-2 border-primary/20 bg-background/50 pr-14 text-base backdrop-blur-sm focus:border-primary/50 focus:ring-primary/50"
-                    />
-                    <Button type="submit" size="icon" className="absolute right-2 top-1/2 -translate-y-1/2 h-9 w-9 rounded-full bg-primary hover:bg-primary/80">
-                        <Send size={18} />
-                    </Button>
+                <form className="relative w-full max-w-2xl">
+                    <div className="relative rounded-full border border-primary/20 bg-background/30 backdrop-blur-sm shadow-[0_0_15px_hsl(var(--primary)/0.1)] transition-all focus-within:border-primary/50 focus-within:shadow-[0_0_20px_hsl(var(--primary)/0.2)]">
+                        <Input
+                            placeholder="Message J.A.R.V.I.S...."
+                            className="h-12 w-full rounded-full border-none bg-transparent pr-14 text-base focus-visible:ring-0"
+                        />
+                        <Button type="submit" size="icon" className="absolute right-2 top-1/2 -translate-y-1/2 h-9 w-9 rounded-full border border-primary/50 bg-transparent text-primary transition-all duration-300 hover:bg-primary hover:text-primary-foreground hover:shadow-[0_0_15px_hsl(var(--primary))]">
+                            <Send size={18} />
+                        </Button>
+                    </div>
                 </form>
             </div>
         </div>

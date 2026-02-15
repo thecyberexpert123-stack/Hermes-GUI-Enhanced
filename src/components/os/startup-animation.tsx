@@ -11,18 +11,23 @@ const StartupAnimation = () => {
   const particleCount = 50;
 
   useEffect(() => {
-    const newParticles = Array.from({ length: particleCount }).map((_, i) => {
-      const angle = (i / particleCount) * Math.PI * 2;
-      const radius = 90 + Math.random() * 20;
-      return {
-        '--angle': `${angle}rad`,
-        '--radius': `${radius}px`,
-        '--delay': `${Math.random() * 1}s`,
-        '--duration': `${2 + Math.random() * 1}s`,
-      } as React.CSSProperties;
-    });
-    setParticles(newParticles);
+    // This logic should remain on the client to avoid hydration errors.
+    if (typeof window !== 'undefined') {
+      const newParticles = Array.from({ length: particleCount }).map((_, i) => {
+        const angle = (i / particleCount) * Math.PI * 2;
+        const radius = 90 + Math.random() * 20;
+        return {
+          '--angle': `${angle}rad`,
+          '--radius': `${radius}px`,
+          '--delay': `${Math.random() * 1}s`,
+          '--duration': `${2 + Math.random() * 1}s`,
+        } as React.CSSProperties;
+      });
+      setParticles(newParticles);
+    }
   }, []);
+
+  const jarvisName = 'JARVIS';
 
   return (
     <div className="flex flex-col items-center justify-center gap-8 text-primary">
@@ -107,19 +112,25 @@ const StartupAnimation = () => {
           </g>
         </svg>
       </div>
-      <div className="relative overflow-hidden">
-        <h1
-          className={cn(
-            'text-4xl font-bold tracking-[0.2em] opacity-0 animate-text-in',
-            orbitron.className
-          )}
-        >
-          NEON OS
-        </h1>
-        <div className="absolute top-0 left-0 h-full w-full animate-scanline bg-gradient-to-b from-transparent via-primary/50 to-transparent" />
+      <div className="relative flex h-12 items-center justify-center overflow-hidden">
+        <div className="flex">
+          {jarvisName.split('').map((letter, i) => (
+            <span
+              key={i}
+              className={cn(
+                'relative text-4xl font-bold tracking-[0.2em] opacity-0 animate-jarvis-letter-in',
+                orbitron.className
+              )}
+              style={{ animationDelay: `${2.5 + i * 0.1}s` }}
+            >
+              {letter}
+            </span>
+          ))}
+        </div>
+        <div className="absolute top-0 left-0 h-full w-full animate-scanline bg-gradient-to-b from-transparent via-primary/20 to-transparent" style={{ animationDelay: '3.5s'}}/>
       </div>
-      <p className="tracking-widest text-accent opacity-0 animate-fade-in [animation-delay:3s]">
-        SYSTEM BOOT SEQUENCE INITIATED...
+      <p className="tracking-widest text-accent opacity-0 animate-fade-in [animation-delay:3.5s]">
+        J.A.R.V.I.S. INITIALIZING...
       </p>
     </div>
   );

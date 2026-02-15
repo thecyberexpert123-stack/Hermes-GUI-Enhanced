@@ -15,7 +15,7 @@ const MetricGauge = ({ name, value, color, icon }: MetricGaugeProps) => {
   const data = [{ name, value: value, fill: color }];
 
   return (
-    <Card className="w-64 border-primary/20 bg-card backdrop-blur-sm" style={{ '--glow-color': color } as React.CSSProperties}>
+    <Card className="w-64 border-primary/20 bg-card/70 backdrop-blur-sm shadow-[0_0_20px_hsl(var(--primary)/0.15),inset_0_0_5px_hsl(var(--primary)/0.1)]" style={{ '--glow-color': color } as React.CSSProperties}>
       <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium text-primary/80">{name}</CardTitle>
         <div className="text-primary [filter:drop-shadow(0_0_2px_var(--glow-color))]">{icon}</div>

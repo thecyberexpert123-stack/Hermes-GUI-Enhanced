@@ -51,9 +51,9 @@ const HUD = ({ setMode }: { setMode: (mode: AppMode) => void }) => {
       <div className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-4 text-primary tracking-widest text-sm">
         <div className="flex items-center gap-2">
             <Grid size={16} />
-            <span>NEON OS v1.0</span>
+            <span>J.A.R.V.I.S. v1.0</span>
         </div>
-        <button onClick={() => setMode('chat')} className="transition-colors hover:text-accent" title="Switch to Chat Mode">
+        <button onClick={() => setMode('chat')} className="rounded-md p-1 transition-all hover:bg-primary/10 hover:text-accent hover:shadow-[0_0_15px_hsl(var(--primary)/0.3)]" title="Switch to Chat Mode">
             <MessageSquare size={16} />
         </button>
       </div>
