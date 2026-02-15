@@ -21,15 +21,20 @@ const VoiceHUD = ({ closeDialog }: VoiceHUDProps) => {
 
   useEffect(() => {
     // Generate particles only once on mount
-    const newParticles = Array.from({ length: 80 }).map(() => ({
+    const newParticles = Array.from({ length: 80 }).map(() => {
+      const angle = Math.random() * 2 * Math.PI;
+      const radius = 50 + Math.random() * 200; // spawn in a radius
+      return {
       '--size': `${Math.random() * 2 + 1}px`,
-      '--x-start': `${Math.random() * 100 - 50}vw`,
-      '--y-start': `${Math.random() * 100 - 50}vh`,
-      '--x-end': `${Math.random() * 100 - 50}vw`,
-      '--y-end': `${Math.random() * 100 - 50}vh`,
-      '--delay': `${Math.random() * 20}s`,
-      '--duration': `${Math.random() * 20 + 20}s`,
-    } as React.CSSProperties));
+      '--x-start': `${Math.cos(angle) * radius}px`,
+      '--y-start': `${Math.sin(angle) * radius}px`,
+      // for drift animation
+      '--x-end': `${Math.cos(angle + Math.PI) * radius}px`,
+      '--y-end': `${Math.sin(angle + Math.PI) * radius}px`,
+      '--delay': `${Math.random() * 10}s`,
+      '--duration': `${Math.random() * 10 + 10}s`,
+      } as React.CSSProperties
+    });
     setParticles(newParticles);
   }, []);
   
@@ -123,7 +128,7 @@ const VoiceHUD = ({ closeDialog }: VoiceHUDProps) => {
           {/* Layer 2: Drifting Particles */}
           <div className="absolute inset-0" style={{ transform: 'translateZ(-50px)' }}>
             {particles.slice(0, 20).map((style, i) => (
-              <div key={i} className="absolute h-[var(--size)] w-[var(--size)] rounded-full bg-accent/50 animate-particle-drift" style={style} />
+              <div key={i} className="absolute left-1/2 top-1/2 h-[var(--size)] w-[var(--size)] rounded-full bg-accent/50 animate-particle-drift" style={style} />
             ))}
           </div>
 
@@ -133,7 +138,6 @@ const VoiceHUD = ({ closeDialog }: VoiceHUDProps) => {
             <div className="absolute inset-[10%] rounded-full border border-accent/30 animate-[spin_30s_linear_infinite_reverse]" style={{ transform: 'translateZ(-10px)' }} />
             <div className="absolute inset-[20%] rounded-full border border-dashed border-accent/60 animate-flicker" style={{ transform: 'translateZ(10px)' }} />
             <div className="absolute inset-[25%] rounded-full border-2 border-primary/50 animate-[spin_10s_linear_infinite]" style={{ transform: 'translateZ(20px)' }} />
-            <div className="absolute inset-[15%] rounded-full border-t-2 border-t-accent animate-scanner-rotate" style={{ transform: 'translateZ(5px)' }} />
           </div>
 
           {/* Layer 4: State-specific Visuals */}
@@ -146,19 +150,30 @@ const VoiceHUD = ({ closeDialog }: VoiceHUDProps) => {
                     className="origin-center animate-waveform-bar" style={{ animationDelay: `${i * 0.02}s` }} />
                 ))}
               </svg>
+              {/* Inward particles */}
+              <div className="absolute inset-0">
+                {particles.slice(40, 60).map((style, i) => (
+                    <div key={i}
+                        className="absolute left-1/2 top-1/2 h-[var(--size)] w-[var(--size)] rounded-full bg-accent animate-particle-suck-in"
+                        style={{ ...style, animationDuration: `${Math.random() * 2 + 1}s`, animationDelay: `${Math.random()}s` }} />
+                ))}
+              </div>
             </div>
             
             {/* THINKING */}
             <div className={cn("absolute inset-0 transition-opacity duration-500", status === 'thinking' ? 'opacity-100' : 'opacity-0')}>
-               <div className="absolute inset-[28%] rounded-full border-2 border-accent/50 animate-scanner-rotate" style={{ '--speed': '2s' } as React.CSSProperties}>
-                 <div className="absolute -left-1 top-1/2 h-2 w-2 rounded-full bg-accent [box-shadow:0_0_8px_hsl(var(--accent))]" />
+               <div className="absolute inset-[28%] animate-[spin_2s_linear_infinite]">
+                  <div className="absolute top-0 left-1/2 -translate-x-1/2 h-1/2 w-px bg-gradient-to-b from-accent to-transparent" />
+               </div>
+               <div className="absolute inset-[20%] animate-[spin_4s_linear_infinite_reverse]">
+                  <div className="absolute bottom-0 left-1/2 -translate-x-1/2 h-1/3 w-px bg-gradient-to-t from-primary/50 to-transparent" />
                </div>
                {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="absolute text-primary/30 animate-glyph-fall" style={{
+                <div key={i} className="absolute text-primary/30 animate-glyph-float" style={{
                   left: `${10 + i * 18}%`,
                   height: `${15 + (i%3)*5}px`,
-                  animationDelay: `${i * 0.4}s`,
-                  animationDuration: `${3 + i * 0.5}s`,
+                  animationDelay: `${i * 0.8}s`,
+                  animationDuration: `${4 + Math.random() * 2}s`,
                 }}>
                   <Hexagon />
                 </div>
