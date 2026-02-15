@@ -10,8 +10,8 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        body: ['Inter', 'sans-serif'],
-        headline: ['Inter', 'sans-serif'],
+        body: ['Orbitron', 'sans-serif'],
+        headline: ['Orbitron', 'sans-serif'],
         code: ['monospace'],
       },
       colors: {
@@ -88,10 +88,61 @@ export default {
             height: '0',
           },
         },
+        'fade-in': {
+          from: { opacity: '0', transform: 'scale(0.98)' },
+          to: { opacity: '1', transform: 'scale(1)' },
+        },
+        'spin-slow': {
+          from: { transform: 'rotate(0deg)' },
+          to: { transform: 'rotate(360deg)' },
+        },
+        'pulse-ripple': {
+          '0%': { transform: 'scale(0.5)', opacity: '0.5' },
+          '100%': { transform: 'scale(1.5)', opacity: '0' },
+        },
+        'trace-in': {
+          to: { strokeDashoffset: '0' },
+        },
+        'particle-in': {
+          '0%': {
+            cx: 'calc(100px + cos(var(--angle)) * 200px)',
+            cy: 'calc(100px + sin(var(--angle)) * 200px)',
+            opacity: '0',
+          },
+          '50%': { opacity: '1' },
+          '100%': {
+            cx: 'calc(100px + cos(var(--angle)) * var(--radius))',
+            cy: 'calc(100px + sin(var(--angle)) * var(--radius))',
+            opacity: '0',
+          },
+        },
+        'text-in': {
+          from: {
+            opacity: '0',
+            transform: 'translateY(10px)',
+            filter: 'blur(5px)',
+          },
+          to: {
+            opacity: '1',
+            transform: 'translateY(0)',
+            filter: 'blur(0)',
+          },
+        },
+        'scanline': {
+          '0%': { transform: 'translateY(-100%)' },
+          '100%': { transform: 'translateY(200%)' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
+        'fade-in': 'fade-in 1s cubic-bezier(0.215, 0.610, 0.355, 1.000) forwards',
+        'spin-slow': 'spin-slow 25s linear infinite',
+        'pulse-ripple': 'pulse-ripple 2s ease-out forwards',
+        'trace-in': 'trace-in 2s cubic-bezier(0.215, 0.610, 0.355, 1.000) 1s forwards',
+        'particle-in': 'particle-in var(--duration) cubic-bezier(0.25, 1, 0.5, 1) var(--delay) forwards',
+        'text-in': 'text-in 1.5s cubic-bezier(0.215, 0.610, 0.355, 1.000) 2.5s forwards',
+        'scanline': 'scanline 1s linear 3s',
       },
     },
   },
