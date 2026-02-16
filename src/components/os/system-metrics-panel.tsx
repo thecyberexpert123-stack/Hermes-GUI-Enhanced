@@ -1,21 +1,35 @@
 'use client';
 
-import { Battery, Cpu, Disc, MemoryStick, Network } from 'lucide-react';
+import { Battery, Cpu, Disc, MemoryStick, Network, Zap } from 'lucide-react';
 import type { FullSystemMetrics } from '@/hooks/use-system-metrics';
 import JarvisPanel from './JarvisPanel';
 import MetricGauge from './metric-gauge';
 
 const PowerIndicator = ({ level, charging }: { level: number; charging: boolean }) => (
-    <div className="flex items-center gap-3">
-        <div className="w-20">
-            <MetricGauge name="Power" value={level} color="hsl(var(--chart-5))" icon={<Battery size={20} />} compact />
+    <div className="space-y-1 text-xs">
+        <div className="flex justify-between items-center">
+            <div className="flex items-center gap-1.5 text-primary/70">
+                <Battery size={14} />
+                <span>Power Status</span>
+            </div>
+            <div className="flex items-center gap-1 font-bold text-foreground">
+                 {charging && <Zap size={12} className="text-green-400 fill-green-400" />}
+                <span>{level.toFixed(0)}%</span>
+            </div>
         </div>
-        <div className="text-xs">
-            <p>Status: <span className="font-bold">{charging ? 'Charging' : 'Discharging'}</span></p>
-            <p>Level: <span className="font-bold">{level.toFixed(0)}%</span></p>
+        <div className="w-full bg-primary/10 h-1.5 rounded-full overflow-hidden">
+            <div 
+                className="h-full rounded-full transition-all duration-300" 
+                style={{
+                    width: `${level}%`,
+                    backgroundColor: level < 20 ? 'hsl(var(--destructive))' : 'hsl(var(--primary))'
+                }}
+            />
         </div>
+        {charging && <p className="text-green-400 text-right font-bold text-[10px] tracking-wider -mt-0.5">CHARGING</p>}
     </div>
 );
+
 
 const StorageIndicator = ({ diskUsage, total, used }: { diskUsage: number; total: number, used: number }) => (
   <div className="space-y-1 text-xs">
