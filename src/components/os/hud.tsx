@@ -25,44 +25,51 @@ const HUD = ({ setMode }: { setMode: (mode: AppMode) => void }) => {
 
   return (
     <div className="relative h-screen w-screen p-4 animate-fade-in font-headline text-primary/90">
-      <div className={boostOverlayClass} style={{
-        backgroundImage: 'radial-gradient(circle, hsl(var(--primary) / 0.3) 0%, transparent 60%)',
-      }}/>
-      
-      {/* Top Bar */}
-      <header className="absolute top-4 left-4 right-4 flex justify-between items-start">
-        <Clock />
-        <div className="flex items-center gap-4 text-primary tracking-widest text-sm">
-            <div className="flex items-center gap-2">
-                <SlidersHorizontal size={16} />
-                <span>NEON OS // J.A.R.V.I.S. v1.0</span>
+        <div className={boostOverlayClass} style={{
+            backgroundImage: 'radial-gradient(circle, hsl(var(--primary) / 0.3) 0%, transparent 60%)',
+        }}/>
+
+        <div className="h-full w-full grid grid-cols-3 grid-rows-3 gap-4">
+            {/* Top Row */}
+            <div className="col-span-1 row-span-1 flex items-start justify-start">
+                <Clock />
             </div>
-            <button onClick={() => setMode('chat')} className="rounded-md p-1 transition-all hover:bg-primary/10 hover:text-accent hover:shadow-[0_0_15px_hsl(var(--primary)/0.3)]" title="Switch to Chat Mode">
-                <MessageSquare size={16} />
-            </button>
+            <div className="col-span-1 row-span-1" />
+            <div className="col-span-1 row-span-1 flex items-start justify-end">
+                <div className="flex items-center gap-4 text-primary tracking-widest text-sm">
+                    <div className="flex items-center gap-2">
+                        <SlidersHorizontal size={16} />
+                        <span>NEON OS // J.A.R.V.I.S. v1.0</span>
+                    </div>
+                    <button onClick={() => setMode('chat')} className="rounded-md p-1 transition-all hover:bg-primary/10 hover:text-accent hover:shadow-[0_0_15px_hsl(var(--primary)/0.3)]" title="Switch to Chat Mode">
+                        <MessageSquare size={16} />
+                    </button>
+                </div>
+            </div>
+
+            {/* Middle Row */}
+            <div className="col-span-1 row-span-1 flex items-center justify-start">
+                <SystemMetricsDisplay metrics={metrics} />
+            </div>
+            <div className="col-span-1 row-span-1 flex items-center justify-center">
+                <CentralCore />
+            </div>
+            <div className="col-span-1 row-span-1 flex items-center justify-end">
+                <div className="flex flex-col gap-8">
+                    <InfoListPanel title="User PC Specs" items={Object.entries(metrics.specs).map(([key, value]) => `${key.toUpperCase()}: ${value}`)} />
+                    <InfoListPanel title="Opened Apps" items={metrics.openedApps} />
+                </div>
+            </div>
+
+            {/* Bottom Row */}
+            <div className="col-span-1 row-span-1 flex items-end justify-start">
+                <BoostButton boostStatus={metrics.boostStatus} onClick={boostPerformance} />
+            </div>
+            <div className="col-span-1 row-span-1" />
+            <div className="col-span-1 row-span-1 flex items-end justify-end">
+                <SystemAnalysisPanel analysis={analysis} isAnalyzing={isAnalyzing} />
+            </div>
         </div>
-      </header>
-      
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-        <CentralCore />
-      </div>
-
-      {/* Left Panels */}
-      <div className="absolute left-4 top-1/4 h-1/2 flex flex-col justify-around">
-        <SystemMetricsDisplay metrics={metrics} />
-      </div>
-
-       {/* Right Panels */}
-       <div className="absolute right-4 top-1/4 h-1/2 flex flex-col justify-around">
-          <InfoListPanel title="User PC Specs" items={Object.entries(metrics.specs).map(([key, value]) => `${key.toUpperCase()}: ${value}`)} />
-          <InfoListPanel title="Opened Apps" items={metrics.openedApps} />
-       </div>
-
-
-      <footer className="absolute bottom-4 left-4 right-4 flex justify-between items-end">
-        <BoostButton boostStatus={metrics.boostStatus} onClick={boostPerformance} />
-        <SystemAnalysisPanel analysis={analysis} isAnalyzing={isAnalyzing} />
-      </footer>
     </div>
   );
 };
