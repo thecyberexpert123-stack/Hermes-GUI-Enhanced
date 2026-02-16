@@ -99,16 +99,16 @@ export default {
         'trace-in': {
           to: { strokeDashoffset: '0' },
         },
-        'particle-in': {
+        'particle-line-in': {
           '0%': {
-            cx: 'calc(100px + cos(var(--angle)) * 200px)',
-            cy: 'calc(100px + sin(var(--angle)) * 200px)',
+            transform: 'translate(calc(100px + cos(var(--angle)) * 250px), calc(100px + sin(var(--angle)) * 250px)) rotate(var(--angle))',
             opacity: '0',
           },
-          '50%': { opacity: '1' },
+          '20%, 80%': {
+            opacity: '1',
+          },
           '100%': {
-            cx: 'calc(100px + cos(var(--angle)) * var(--radius))',
-            cy: 'calc(100px + sin(var(--angle)) * var(--radius))',
+            transform: 'translate(calc(100px + cos(var(--angle)) * var(--radius)), calc(100px + sin(var(--angle)) * var(--radius))) rotate(var(--angle))',
             opacity: '0',
           },
         },
@@ -229,7 +229,7 @@ export default {
         'fade-in': 'fade-in 1s cubic-bezier(0.215, 0.610, 0.355, 1.000) forwards',
         'spin-slow': 'spin-slow 25s linear infinite',
         'trace-in': 'trace-in 2s cubic-bezier(0.215, 0.610, 0.355, 1.000) 1s forwards',
-        'particle-in': 'particle-in var(--duration) cubic-bezier(0.25, 1, 0.5, 1) var(--delay) forwards',
+        'particle-line-in': 'particle-line-in var(--duration) cubic-bezier(0.4, 0, 0.2, 1) var(--delay) forwards',
         'jarvis-letter-in': 'jarvis-letter-in 1.2s cubic-bezier(0.215, 0.610, 0.355, 1.000) forwards',
         'scanline': 'scanline 1s linear 3s',
         'pulse-slow': 'pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',

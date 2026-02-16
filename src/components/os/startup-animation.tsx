@@ -8,19 +8,19 @@ const orbitron = Orbitron({ subsets: ['latin'] });
 
 const StartupAnimation = () => {
   const [particles, setParticles] = useState<React.CSSProperties[]>([]);
-  const particleCount = 100; // Increased particle count
+  const particleCount = 150; // Adjusted particle count
 
   useEffect(() => {
     // This logic should remain on the client to avoid hydration errors.
     if (typeof window !== 'undefined') {
       const newParticles = Array.from({ length: particleCount }).map((_, i) => {
         const angle = (i / particleCount) * Math.PI * 2;
-        const radius = 90 + Math.random() * 20;
+        const radius = 65 + Math.random() * 15; // End near the core rings
         return {
           '--angle': `${angle}rad`,
           '--radius': `${radius}px`,
-          '--delay': `${1.5 + Math.random() * 1.5}s`, // Stagger particle animation
-          '--duration': `${2 + Math.random() * 1.5}s`,
+          '--delay': `${1.5 + Math.random() * 1.5}s`,
+          '--duration': `${1.5 + Math.random() * 1}s`, // Faster animation
         } as React.CSSProperties;
       });
       setParticles(newParticles);
@@ -59,12 +59,16 @@ const StartupAnimation = () => {
             {/* Core Pulse */}
             <circle cx="100" cy="100" r="5" className="fill-current text-primary animate-pulse-slow" style={{animationDelay: '0.5s'}} />
             
-            {/* Incoming Particles */}
+            {/* Incoming Electric Streaks */}
             {particles.map((style, i) => (
-              <circle
+              <line
                 key={i}
-                r="1.5"
-                className="fill-current text-accent opacity-0 animate-particle-in"
+                x1="-4"
+                y1="0"
+                x2="4"
+                y2="0"
+                strokeWidth="1.5"
+                className="stroke-current text-accent opacity-0 animate-particle-line-in"
                 style={style}
               />
             ))}
@@ -93,23 +97,23 @@ const StartupAnimation = () => {
                 />
                 <path
                     className="animate-trace-in"
-                    style={{ '--delay': '1.9s', strokeDasharray: 60, strokeDashoffset: 60 } as React.CSSProperties}
-                    d="M 20 20 h 20 v 20 h 20"
+                    style={{ '--delay': '1.9s', strokeDasharray: 85, strokeDashoffset: 85 } as React.CSSProperties}
+                    d="M 20 20 L 60 60"
                 />
                  <path
                     className="animate-trace-in"
-                    style={{ '--delay': '2.0s', strokeDasharray: 60, strokeDashoffset: 60 } as React.CSSProperties}
-                    d="M 180 180 h -20 v -20 h -20"
+                    style={{ '--delay': '2.0s', strokeDasharray: 85, strokeDashoffset: 85 } as React.CSSProperties}
+                    d="M 180 180 L 140 140"
                 />
                  <path
                     className="animate-trace-in"
-                    style={{ '--delay': '2.1s', strokeDasharray: 60, strokeDashoffset: 60 } as React.CSSProperties}
-                    d="M 20 180 h 20 v -20 h 20"
+                    style={{ '--delay': '2.1s', strokeDasharray: 85, strokeDashoffset: 85 } as React.CSSProperties}
+                    d="M 20 180 L 60 140"
                 />
                  <path
                     className="animate-trace-in"
-                    style={{ '--delay': '2.2s', strokeDasharray: 60, strokeDashoffset: 60 } as React.CSSProperties}
-                    d="M 180 20 h -20 v 20 h -20"
+                    style={{ '--delay': '2.2s', strokeDasharray: 85, strokeDashoffset: 85 } as React.CSSProperties}
+                    d="M 180 20 L 140 60"
                 />
             </g>
 
