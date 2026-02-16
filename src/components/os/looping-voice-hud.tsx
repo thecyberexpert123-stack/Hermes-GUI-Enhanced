@@ -113,7 +113,7 @@ const LoopingVoiceHUD = () => {
                 maskImage: 'radial-gradient(circle at center, white 20%, transparent 70%)',
             }}
           >
-            <div className="absolute inset-0 animate-circuit-pulse [background-image:radial-gradient(hsl(var(--primary)/0.07)_1px,transparent_1px)] [background-size:1.5rem_1.5rem]" />
+            <div className="absolute inset-0 animate-circuit-pulse [background-image:radial-gradient(hsl(var(--primary)/0.15)_1px,transparent_1px)] [background-size:1.5rem_1.5rem]" />
           </div>
           
           {/* Drifting Particles */}
