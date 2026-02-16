@@ -12,6 +12,7 @@ import ChatMessage from './chat-message';
 import { nanoid } from 'nanoid';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import Image from 'next/image';
+import { useToast } from '@/hooks/use-toast';
 
 const Corner = (props: React.HTMLAttributes<SVGElement>) => (
   <svg
@@ -31,6 +32,7 @@ const ChatMode = ({ setMode }: { setMode: (mode: AppMode) => void }) => {
     const [isLoading, setIsLoading] = useState(false);
     const [photoDataUri, setPhotoDataUri] = useState<string | null>(null);
     const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+    const { toast } = useToast();
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -122,7 +124,7 @@ const ChatMode = ({ setMode }: { setMode: (mode: AppMode) => void }) => {
 
 
     return (
-        <div className="relative flex h-screen w-screen flex-col items-center justify-center p-4 font-headline">
+        <div className="relative flex h-screen w-screen flex-col items-center justify-center p-4 font-headline bg-background">
             {/* Corner decorations */}
             <Corner className="absolute top-4 left-4 h-8 w-8 text-primary/50" />
             <Corner className="absolute top-4 right-4 h-8 w-8 -scale-x-100 text-primary/50" />
@@ -134,10 +136,18 @@ const ChatMode = ({ setMode }: { setMode: (mode: AppMode) => void }) => {
                 <button onClick={() => setMode('hud')} className="rounded-md p-1 transition-all hover:bg-primary/10 hover:text-accent hover:shadow-[0_0_15px_hsl(var(--primary)/0.3)]" title="Switch to HUD Mode">
                     <Grid size={16} />
                 </button>
-                <div className="flex items-center gap-2">
+                <button
+                    className="flex items-center gap-2 rounded-md p-1 transition-all hover:bg-primary/10 hover:text-accent hover:shadow-[0_0_15px_hsl(var(--primary)/0.3)]"
+                    onClick={() => {
+                        toast({
+                            title: "J.A.R.V.I.S. AI Chat",
+                            description: "You are communicating with J.A.R.V.I.S. (Just A Rather Very Intelligent System).",
+                        })
+                    }}
+                >
                     <MessageSquare size={16} />
                     <span>AI CHAT</span>
-                </div>
+                </button>
             </div>
 
             <div className="flex-grow w-full max-w-4xl flex items-center justify-center overflow-hidden pt-12 pb-4">

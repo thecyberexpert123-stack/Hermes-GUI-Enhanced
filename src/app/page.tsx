@@ -34,7 +34,7 @@ export default function Home() {
   return (
     <div className={cn(
       "relative flex min-h-screen w-full items-center justify-center overflow-hidden",
-      mode === 'chat' && !booting && 'bg-background'
+      !booting && 'bg-background'
     )}>
       {booting ? <StartupAnimation /> : renderContent()}
     </div>

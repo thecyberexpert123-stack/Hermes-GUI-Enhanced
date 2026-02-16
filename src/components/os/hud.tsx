@@ -10,9 +10,11 @@ import BoostButton from './BoostButton';
 import { MessageSquare, SlidersHorizontal } from 'lucide-react';
 import { type AppMode } from '@/app/page';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 
 const HUD = ({ setMode }: { setMode: (mode: AppMode) => void }) => {
   const { metrics, analysis, isAnalyzing, boostPerformance } = useSystemMetrics();
+  const { toast } = useToast();
 
   const boostOverlayClass = cn(
     "fixed inset-0 z-50 pointer-events-none transition-opacity duration-1000",
@@ -43,10 +45,18 @@ const HUD = ({ setMode }: { setMode: (mode: AppMode) => void }) => {
             <div className="col-span-1 row-span-1" />
             <div className="col-span-1 row-span-1 flex items-start justify-end">
                 <div className="flex items-center gap-4 text-primary tracking-widest text-sm">
-                    <div className="flex items-center gap-2">
+                    <button 
+                        className="flex items-center gap-2 rounded-md p-1 transition-all hover:bg-primary/10 hover:text-accent hover:shadow-[0_0_15px_hsl(var(--primary)/0.3)]"
+                        onClick={() => {
+                            toast({
+                                title: "System Configuration",
+                                description: "Access to system settings is restricted at this time.",
+                            })
+                        }}
+                    >
                         <SlidersHorizontal size={16} />
                         <span>NEON OS // J.A.R.V.I.S. v1.0</span>
-                    </div>
+                    </button>
                     <button onClick={() => setMode('chat')} className="rounded-md p-1 transition-all hover:bg-primary/10 hover:text-accent hover:shadow-[0_0_15px_hsl(var(--primary)/0.3)]" title="Switch to Chat Mode">
                         <MessageSquare size={16} />
                     </button>
