@@ -1,12 +1,26 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { analyzeSystemPerformance, type SystemPerformanceInput, type SystemPerformanceOutput } from '@/ai/flows/system-performance-analysis';
 
-export type SystemMetrics = SystemPerformanceInput;
+export interface SystemSpecs {
+  cpu: string;
+  gpu: string;
+  ram: string;
+  os: string;
+}
+
+export type BoostStatus = 'idle' | 'boosting' | 'cooling';
+
+// This combines the AI flow input with the extra data we need for the UI
+export type FullSystemMetrics = SystemPerformanceInput & {
+  specs: SystemSpecs;
+  openedApps: string[];
+  boostStatus: BoostStatus;
+};
 
 const useSystemMetrics = () => {
-  const [metrics, setMetrics] = useState<SystemMetrics>({
+  const [metrics, setMetrics] = useState<FullSystemMetrics>({
     cpuUsage: 30,
     gpuUsage: 15,
     ramUsage: 45,
@@ -15,44 +29,85 @@ const useSystemMetrics = () => {
     networkOutMbps: 5,
     batteryLevel: 100,
     batteryCharging: true,
+    specs: {
+      cpu: 'ARK-2500 Reactor',
+      gpu: 'Stark Industries GFX-9000',
+      ram: '128 ZB',
+      os: 'J.A.R.V.I.S. v1.0',
+    },
+    openedApps: ['AI Core', 'Global Comms', 'Threat Analysis', 'Mark LXXXV Diagnostics'],
+    boostStatus: 'idle',
   });
 
   const [analysis, setAnalysis] = useState<SystemPerformanceOutput | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   const timeRef = useRef(0);
+  const boostTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const boostPerformance = useCallback(() => {
+    if (metrics.boostStatus !== 'idle') return;
+
+    setMetrics(prev => ({ ...prev, boostStatus: 'boosting' }));
+    
+    // Store original values before "boosting"
+    const originalValues = { cpuUsage: metrics.cpuUsage, gpuUsage: metrics.gpuUsage, ramUsage: metrics.ramUsage };
+
+    // Simulate boost effect by spiking metrics
+    setMetrics(prev => ({
+        ...prev,
+        cpuUsage: Math.min(100, originalValues.cpuUsage + 40),
+        gpuUsage: Math.min(100, originalValues.gpuUsage + 50),
+        ramUsage: Math.min(100, originalValues.ramUsage + 30),
+    }));
+
+    if (boostTimeoutRef.current) clearTimeout(boostTimeoutRef.current);
+    boostTimeoutRef.current = setTimeout(() => {
+      setMetrics(prev => ({ ...prev, boostStatus: 'cooling' }));
+      // Return to normal values after "cooling"
+      boostTimeoutRef.current = setTimeout(() => {
+        setMetrics(prev => ({
+            ...prev,
+            boostStatus: 'idle',
+            cpuUsage: originalValues.cpuUsage,
+            gpuUsage: originalValues.gpuUsage,
+            ramUsage: originalValues.ramUsage,
+        }));
+      }, 3000);
+    }, 1500);
+  }, [metrics.boostStatus, metrics.cpuUsage, metrics.gpuUsage, metrics.ramUsage]);
+
 
   useEffect(() => {
     const updateMetrics = () => {
+      // Don't update metrics if a boost is in progress
+      if (metrics.boostStatus !== 'idle') return;
+
       timeRef.current += 0.5;
       const t = timeRef.current;
 
       setMetrics(prevMetrics => {
-        const newMetrics: SystemMetrics = {
+        const newMetrics: FullSystemMetrics = {
+          ...prevMetrics,
           cpuUsage: 45 + 40 * Math.sin(t / 5),
           gpuUsage: 30 + 25 * Math.sin(t / 8 + 2),
           ramUsage: 50 + 20 * Math.cos(t / 6),
-          diskUsage: prevMetrics.diskUsage, // Keep disk usage stable unless changed elsewhere
           networkInMbps: 20 + 18 * Math.abs(Math.sin(t / 3)),
           networkOutMbps: 8 + 7 * Math.abs(Math.cos(t / 4)),
           batteryLevel: prevMetrics.batteryCharging 
             ? Math.min(100, prevMetrics.batteryLevel + 0.1)
             : Math.max(0, prevMetrics.batteryLevel - 0.05),
-          batteryCharging: prevMetrics.batteryCharging,
         };
 
-        // Randomly toggle battery charging status
         if (Math.random() < 0.005) {
           newMetrics.batteryCharging = !newMetrics.batteryCharging;
         }
-
-        // Clamp values
+        
+        // Clamp values between 0 and 100 for percentages
         Object.keys(newMetrics).forEach(key => {
-            const k = key as keyof SystemMetrics;
-            if (typeof newMetrics[k] === 'number') {
-                if(k !== 'networkInMbps' && k !== 'networkOutMbps') {
-                    (newMetrics[k] as number) = Math.max(0, Math.min(100, newMetrics[k] as number));
-                }
+            const k = key as keyof SystemPerformanceInput;
+            if (typeof newMetrics[k] === 'number' && k.endsWith('Usage') || k.endsWith('Level')) {
+              (newMetrics[k] as number) = Math.max(0, Math.min(100, newMetrics[k] as number));
             }
         });
         
@@ -61,15 +116,19 @@ const useSystemMetrics = () => {
     };
 
     const intervalId = setInterval(updateMetrics, 2000);
-    return () => clearInterval(intervalId);
-  }, []);
+    return () => {
+      clearInterval(intervalId);
+      if(boostTimeoutRef.current) clearTimeout(boostTimeoutRef.current);
+    };
+  }, [metrics.boostStatus]);
 
   useEffect(() => {
     const performAnalysis = async () => {
       if (isAnalyzing) return;
       setIsAnalyzing(true);
       try {
-        const result = await analyzeSystemPerformance(metrics);
+        const { specs, openedApps, boostStatus, ...performanceInput } = metrics;
+        const result = await analyzeSystemPerformance(performanceInput);
         setAnalysis(result);
       } catch (error) {
         console.error("Error analyzing system performance:", error);
@@ -78,11 +137,11 @@ const useSystemMetrics = () => {
       }
     };
 
-    const analysisTimer = setTimeout(performAnalysis, 2100);
+    const analysisTimer = setTimeout(performAnalysis, 5000);
     return () => clearTimeout(analysisTimer);
   }, [metrics]);
 
-  return { metrics, analysis, isAnalyzing };
+  return { metrics, analysis, isAnalyzing, boostPerformance };
 };
 
 export default useSystemMetrics;

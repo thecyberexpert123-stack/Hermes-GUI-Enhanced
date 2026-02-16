@@ -213,6 +213,11 @@ export default {
           '0%, 100%': { 'background-color': 'hsl(var(--primary)/0.05)' },
           '50%': { 'background-color': 'hsl(var(--primary)/0.15)' }
         },
+        'boost-flash': {
+          '0%': { opacity: '0' },
+          '25%': { opacity: '1' },
+          '100%': { opacity: '0' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
@@ -239,6 +244,7 @@ export default {
         'particle-suck-in': 'particle-suck-in forwards',
         'particle-swirl': 'particle-swirl 6s ease-in-out forwards',
         'circuit-pulse': 'circuit-pulse 5s ease-in-out infinite',
+        'boost-flash': 'boost-flash 0.5s ease-out forwards',
       },
     },
   },
