@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Mic } from 'lucide-react';
-import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import VoiceHUD from './voice-hud';
 
 const CentralCore = () => {
@@ -30,6 +30,10 @@ const CentralCore = () => {
         </DialogTrigger>
       </div>
       <DialogContent className="max-w-none w-auto h-auto bg-transparent border-none p-0 flex items-center justify-center shadow-none focus-visible:ring-0">
+        <DialogTitle className="sr-only">Voice Mode</DialogTitle>
+        <DialogDescription className="sr-only">
+          Voice interaction mode for J.A.R.V.I.S. has been activated.
+        </DialogDescription>
         {isDialogOpen && <VoiceHUD closeDialog={() => setIsDialogOpen(false)} />}
       </DialogContent>
     </Dialog>
