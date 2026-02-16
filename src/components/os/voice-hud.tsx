@@ -3,21 +3,22 @@
 import { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { Orbitron } from 'next/font/google';
+import { useVoiceAssistant, type AiStatus } from '@/hooks/use-voice-assistant';
 
 const orbitron = Orbitron({ subsets: ['latin'] });
-
-type AiStatus = 'idle' | 'listening' | 'thinking' | 'speaking';
 
 interface VoiceHUDProps {
   closeDialog: () => void;
 }
 
 const VoiceHUD = ({ closeDialog }: VoiceHUDProps) => {
-  const [status, setStatus] = useState<AiStatus>('idle');
   const [show, setShow] = useState(true);
+  const { status, transcript, error, audioDataUri } = useVoiceAssistant(closeDialog);
+  
   const [particles, setParticles] = useState<React.CSSProperties[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
   const coreRef = useRef<HTMLDivElement>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -36,34 +37,22 @@ const VoiceHUD = ({ closeDialog }: VoiceHUDProps) => {
     });
     setParticles(newParticles);
   }, []);
-  
+
+  // Audio playback effect
   useEffect(() => {
-    let isMounted = true;
-    const sequence = async () => {
-      if (!isMounted) return;
-      setStatus('idle');
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      if (!isMounted) return;
-
-      setStatus('listening');
-      await new Promise(resolve => setTimeout(resolve, 4000));
-      if (!isMounted) return;
-      
-      setStatus('thinking');
-      await new Promise(resolve => setTimeout(resolve, 5000));
-      if (!isMounted) return;
-
-      setStatus('speaking');
-      await new Promise(resolve => setTimeout(resolve, 6000));
-      if (!isMounted) return;
-
-      setShow(false);
-      await new Promise(resolve => setTimeout(resolve, 500)); // wait for fade out
-      if (isMounted) closeDialog();
-    };
-    sequence();
-    return () => { isMounted = false; };
-  }, [closeDialog]);
+    if (status === 'speaking' && audioDataUri) {
+        if (!audioRef.current) {
+            audioRef.current = new Audio();
+            audioRef.current.onended = () => {
+                setShow(false);
+                // Use a timeout to allow fade-out animation to complete
+                setTimeout(() => closeDialog(), 500);
+            };
+        }
+        audioRef.current.src = audioDataUri;
+        audioRef.current.play().catch(e => console.error("Audio playback failed", e));
+    }
+  }, [status, audioDataUri, closeDialog]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -95,20 +84,15 @@ const VoiceHUD = ({ closeDialog }: VoiceHUDProps) => {
     };
   }, []);
 
-
-  const statusText: Record<AiStatus, string> = {
-    idle: 'Idle',
+  const statusTextMap: Record<AiStatus, string> = {
+    idle: 'Initializing...',
     listening: 'Listening...',
-    thinking: 'Processing...',
+    thinking: 'Thinking...',
     speaking: 'Responding...',
+    error: error || 'An error occurred.',
   };
 
-  const statusDurations: Record<AiStatus, number> = {
-    idle: 1,
-    listening: 4,
-    thinking: 5,
-    speaking: 6,
-  };
+  const statusText = statusTextMap[status];
 
   const Hexagon = ({ className, ...props }: React.SVGProps<SVGSVGElement>) => (
     <svg viewBox="0 0 24 24" fill="currentColor" className={cn("h-full w-full", className)} {...props}>
@@ -147,7 +131,7 @@ const VoiceHUD = ({ closeDialog }: VoiceHUDProps) => {
           </div>
 
           <div className="absolute inset-0 h-full w-full" style={{ transformStyle: 'preserve-3d' }}>
-            <div className={cn("absolute inset-0 transition-opacity duration-500", status === 'idle' ? 'opacity-100' : 'opacity-0')} />
+            <div className={cn("absolute inset-0 transition-opacity duration-500", status === 'idle' || status === 'error' ? 'opacity-100' : 'opacity-0')} />
 
             <div className={cn("absolute inset-0 transition-opacity duration-500", status === 'listening' ? 'opacity-100' : 'opacity-0')}>
               <svg viewBox="-100 -100 200 200" className="h-full w-full animate-pulse-slow">
@@ -213,11 +197,13 @@ const VoiceHUD = ({ closeDialog }: VoiceHUDProps) => {
         </div>
       </div>
       <div 
-        key={status} 
-        className={cn("absolute -bottom-8 text-center text-accent tracking-widest text-sm animate-fade-in-out", orbitron.className)}
-        style={{ animationDuration: `${statusDurations[status]}s` }}
+        className={cn("absolute -bottom-8 text-center text-accent tracking-widest text-sm animate-fade-in", orbitron.className)}
       >
-        {statusText[status]}
+        {status === 'listening' && transcript ? (
+            <span className="text-white/80">{transcript}</span>
+        ) : (
+            statusText
+        )}
       </div>
     </div>
   );
