@@ -122,7 +122,7 @@ const ChatMode = ({ setMode }: { setMode: (mode: AppMode) => void }) => {
 
 
     return (
-        <div className="relative flex h-screen w-screen flex-col items-center justify-center p-4 font-headline">
+        <div className="relative flex h-screen w-screen flex-col items-center justify-center bg-background p-4 font-headline">
             {/* Corner decorations */}
             <Corner className="absolute top-4 left-4 h-8 w-8 text-primary/50" />
             <Corner className="absolute top-4 right-4 h-8 w-8 -scale-x-100 text-primary/50" />
