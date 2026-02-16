@@ -163,7 +163,7 @@ const ChatMode = ({ setMode }: { setMode: (mode: AppMode) => void }) => {
                         {photoPreview && (
                             <div className="absolute bottom-16 left-4">
                                 <div className="relative h-20 w-20 rounded-md border border-primary/30 p-1 bg-background/50">
-                                    <Image src={photoPreview} alt="Preview" fill objectFit="cover" className="rounded"/>
+                                    <Image src={photoPreview} alt="Preview" fill className="rounded object-cover"/>
                                     <Button type="button" size="icon" variant="destructive" className="absolute -top-2 -right-2 h-6 w-6 rounded-full" onClick={handleRemoveImage}>
                                         <X size={14}/>
                                     </Button>

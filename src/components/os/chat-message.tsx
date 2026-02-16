@@ -50,7 +50,7 @@ const ChatMessage = ({ message }: { message: Message }) => {
         )}
         {message.imageUrl && (
             <div className="relative mt-2 h-48 w-48 overflow-hidden rounded-md border border-primary/20">
-                <Image src={message.imageUrl} alt="Uploaded image" fill objectFit="cover" />
+                <Image src={message.imageUrl} alt="Uploaded image" fill className="object-cover" />
             </div>
         )}
       </div>
