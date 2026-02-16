@@ -19,7 +19,7 @@ const StartupAnimation = () => {
         return {
           '--angle': `${angle}rad`,
           '--radius': `${radius}px`,
-          '--delay': `${Math.random() * 1}s`,
+          '--delay': `${1.5 + Math.random() * 1}s`, // Delay particles to appear during core assembly
           '--duration': `${2 + Math.random() * 1}s`,
         } as React.CSSProperties;
       });
@@ -30,11 +30,17 @@ const StartupAnimation = () => {
   const jarvisName = 'JARVIS';
 
   return (
-    <div className="flex flex-col items-center justify-center gap-8 text-primary">
+    <div className="flex flex-col items-center justify-center gap-8 text-primary overflow-hidden">
       <div className="relative h-64 w-64">
-        <div className="absolute inset-0 animate-fade-in [animation-delay:3.5s]">
-          <div className="h-full w-full animate-[spin_20s_linear_infinite] rounded-full border-2 border-dashed border-primary/20" />
+        {/* Phase 1: Background Grid */}
+        <div className="absolute inset-[-100%] animate-fade-in [animation-duration:1.5s] [background-image:radial-gradient(hsl(var(--primary)/0.1)_1px,transparent_1px)] [background-size:1.5rem_1.5rem]" />
+
+        {/* Phase 2: Core Assembly */}
+        <div className="absolute inset-0 animate-fade-in [animation-delay:1s]">
+          <div className="h-full w-full animate-[spin_20s_linear_infinite] rounded-full border-2 border-dashed border-primary/10" />
         </div>
+        <div className="absolute inset-[10%] h-[80%] w-[80%] animate-[spin_15s_linear_infinite_reverse] rounded-full border border-dotted border-accent/20" />
+        
         <svg
           viewBox="0 0 200 200"
           className="absolute inset-0 h-full w-full -rotate-90"
@@ -50,6 +56,9 @@ const StartupAnimation = () => {
             </filter>
           </defs>
           <g filter="url(#glow)" className="origin-center">
+            {/* Core Pulse */}
+            <circle cx="100" cy="100" r="5" className="fill-current text-primary animate-pulse-slow" style={{animationDelay: '0.5s'}} />
+            
             {/* Particles */}
             {particles.map((style, i) => (
               <circle
@@ -91,6 +100,20 @@ const StartupAnimation = () => {
               strokeDasharray="503"
               strokeDashoffset="503"
             />
+            {/* New animated arcs */}
+             <path
+              className="animate-trace-in fill-none stroke-current"
+              style={{ '--delay': '2.2s', strokeDasharray: 90, strokeDashoffset: 90 } as React.CSSProperties}
+              d="M 20 100 A 80 80 0 0 1 100 20"
+              strokeWidth="1"
+            />
+            <path
+              className="animate-trace-in fill-none stroke-current"
+              style={{ '--delay': '2.3s', strokeDasharray: 90, strokeDashoffset: 90 } as React.CSSProperties}
+              d="M 100 180 A 80 80 0 0 1 20 100"
+              strokeWidth="1"
+              transform="rotate(180 100 100)"
+            />
 
             {/* Inner details */}
             <path
@@ -112,6 +135,7 @@ const StartupAnimation = () => {
           </g>
         </svg>
       </div>
+      {/* Phase 3: Text Boot */}
       <div className="relative flex h-12 items-center justify-center overflow-hidden">
         <div className="flex">
           {jarvisName.split('').map((letter, i) => (
@@ -129,6 +153,7 @@ const StartupAnimation = () => {
         </div>
         <div className="absolute top-0 left-0 h-full w-full animate-scanline bg-gradient-to-b from-transparent via-primary/20 to-transparent" style={{ animationDelay: '3.5s'}}/>
       </div>
+      {/* Phase 4: System Online */}
       <p className="tracking-widest text-accent opacity-0 animate-fade-in [animation-delay:3.5s]">
         J.A.R.V.I.S. INITIALIZING...
       </p>
