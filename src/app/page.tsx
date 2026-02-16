@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import StartupAnimation from '@/components/os/startup-animation';
 import HUD from '@/components/os/hud';
 import ChatMode from '@/components/os/chat-mode';
+import { cn } from '@/lib/utils';
 
 export type AppMode = 'hud' | 'chat';
 
@@ -31,7 +32,10 @@ export default function Home() {
   };
 
   return (
-    <div className="relative flex min-h-screen w-full items-center justify-center overflow-hidden">
+    <div className={cn(
+      "relative flex min-h-screen w-full items-center justify-center overflow-hidden",
+      mode === 'chat' && !booting && 'bg-background'
+    )}>
       {booting ? <StartupAnimation /> : renderContent()}
     </div>
   );
