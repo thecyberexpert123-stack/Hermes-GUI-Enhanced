@@ -16,14 +16,14 @@ const Clock = () => {
   const dayOfMonth = date.getDate();
 
   return (
-    <div className="flex items-center gap-4 text-primary">
-        <div className="grid grid-cols-2 text-center leading-none">
-            <div className="text-4xl font-bold border-r-2 border-primary/50 pr-3">{month.substring(0,3).toUpperCase()}</div>
-            <div className="text-4xl font-bold pl-3">{dayOfMonth}</div>
-            <div className="col-span-2 text-xs tracking-widest">{day.toUpperCase()}</div>
-        </div>
-        <div className="text-2xl font-semibold tabular-nums">
+    <div className="flex items-baseline gap-4 text-primary">
+        <div className="text-5xl font-bold tabular-nums leading-none">
             {time}
+        </div>
+        <div className="grid grid-cols-2 text-center leading-tight border-l-2 border-primary/50 pl-4">
+            <div className="text-2xl font-bold pr-2">{month.substring(0,3).toUpperCase()}</div>
+            <div className="text-2xl font-bold pl-2">{dayOfMonth}</div>
+            <div className="col-span-2 text-xs tracking-widest">{day.toUpperCase()}</div>
         </div>
     </div>
   );
