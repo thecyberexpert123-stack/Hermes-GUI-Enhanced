@@ -44,6 +44,11 @@ const useSystemMetrics = () => {
 
   const timeRef = useRef(0);
   const boostTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const metricsRef = useRef(metrics);
+
+  useEffect(() => {
+    metricsRef.current = metrics;
+  }, [metrics]);
 
   const boostPerformance = useCallback(() => {
     if (metrics.boostStatus !== 'idle') return;
@@ -81,7 +86,7 @@ const useSystemMetrics = () => {
   useEffect(() => {
     const updateMetrics = () => {
       // Don't update metrics if a boost is in progress
-      if (metrics.boostStatus !== 'idle') return;
+      if (metricsRef.current.boostStatus !== 'idle') return;
 
       timeRef.current += 0.5;
       const t = timeRef.current;
@@ -120,26 +125,32 @@ const useSystemMetrics = () => {
       clearInterval(intervalId);
       if(boostTimeoutRef.current) clearTimeout(boostTimeoutRef.current);
     };
-  }, [metrics.boostStatus]);
+  }, []);
 
   useEffect(() => {
     const performAnalysis = async () => {
       if (isAnalyzing) return;
       setIsAnalyzing(true);
       try {
-        const { specs, openedApps, boostStatus, ...performanceInput } = metrics;
+        const { specs, openedApps, boostStatus, ...performanceInput } = metricsRef.current;
         const result = await analyzeSystemPerformance(performanceInput);
         setAnalysis(result);
       } catch (error) {
-        console.error("Error analyzing system performance:", error);
+        if (error instanceof Error && error.message.includes('429')) {
+          console.warn("AI analysis skipped due to rate limiting.");
+        } else {
+          console.error("Error analyzing system performance:", error);
+        }
       } finally {
         setIsAnalyzing(false);
       }
     };
 
-    const analysisTimer = setTimeout(performAnalysis, 5000);
-    return () => clearTimeout(analysisTimer);
-  }, [metrics]);
+    performAnalysis(); // Initial analysis
+    const analysisIntervalId = setInterval(performAnalysis, 60000); // Analyze every 60 seconds
+
+    return () => clearInterval(analysisIntervalId);
+  }, []); // Empty dependency array ensures this runs only on mount
 
   return { metrics, analysis, isAnalyzing, boostPerformance };
 };
