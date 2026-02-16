@@ -8,7 +8,7 @@ const orbitron = Orbitron({ subsets: ['latin'] });
 
 const StartupAnimation = () => {
   const [particles, setParticles] = useState<React.CSSProperties[]>([]);
-  const particleCount = 50;
+  const particleCount = 100; // Increased particle count
 
   useEffect(() => {
     // This logic should remain on the client to avoid hydration errors.
@@ -19,8 +19,8 @@ const StartupAnimation = () => {
         return {
           '--angle': `${angle}rad`,
           '--radius': `${radius}px`,
-          '--delay': `${1.5 + Math.random() * 1}s`, // Delay particles to appear during core assembly
-          '--duration': `${2 + Math.random() * 1}s`,
+          '--delay': `${1.5 + Math.random() * 1.5}s`, // Stagger particle animation
+          '--duration': `${2 + Math.random() * 1.5}s`,
         } as React.CSSProperties;
       });
       setParticles(newParticles);
@@ -59,7 +59,7 @@ const StartupAnimation = () => {
             {/* Core Pulse */}
             <circle cx="100" cy="100" r="5" className="fill-current text-primary animate-pulse-slow" style={{animationDelay: '0.5s'}} />
             
-            {/* Particles */}
+            {/* Incoming Particles */}
             {particles.map((style, i) => (
               <circle
                 key={i}
@@ -68,70 +68,116 @@ const StartupAnimation = () => {
                 style={style}
               />
             ))}
+            
+            {/* Circuitry paths */}
+            <g strokeWidth="0.5" className="fill-none stroke-primary/50 opacity-70">
+                <path
+                    className="animate-trace-in"
+                    style={{ '--delay': '1.5s', strokeDasharray: 80, strokeDashoffset: 80 } as React.CSSProperties}
+                    d="M 0 100 h 40 v -20 h 20"
+                />
+                <path
+                    className="animate-trace-in"
+                    style={{ '--delay': '1.6s', strokeDasharray: 80, strokeDashoffset: 80 } as React.CSSProperties}
+                    d="M 200 100 h -40 v 20 h -20"
+                />
+                <path
+                    className="animate-trace-in"
+                    style={{ '--delay': '1.7s', strokeDasharray: 80, strokeDashoffset: 80 } as React.CSSProperties}
+                    d="M 100 0 v 40 h -20 v 20"
+                />
+                <path
+                    className="animate-trace-in"
+                    style={{ '--delay': '1.8s', strokeDasharray: 80, strokeDashoffset: 80 } as React.CSSProperties}
+                    d="M 100 200 v -40 h 20 v -20"
+                />
+                <path
+                    className="animate-trace-in"
+                    style={{ '--delay': '1.9s', strokeDasharray: 60, strokeDashoffset: 60 } as React.CSSProperties}
+                    d="M 20 20 h 20 v 20 h 20"
+                />
+                 <path
+                    className="animate-trace-in"
+                    style={{ '--delay': '2.0s', strokeDasharray: 60, strokeDashoffset: 60 } as React.CSSProperties}
+                    d="M 180 180 h -20 v -20 h -20"
+                />
+                 <path
+                    className="animate-trace-in"
+                    style={{ '--delay': '2.1s', strokeDasharray: 60, strokeDashoffset: 60 } as React.CSSProperties}
+                    d="M 20 180 h 20 v -20 h 20"
+                />
+                 <path
+                    className="animate-trace-in"
+                    style={{ '--delay': '2.2s', strokeDasharray: 60, strokeDashoffset: 60 } as React.CSSProperties}
+                    d="M 180 20 h -20 v 20 h -20"
+                />
+            </g>
 
             {/* Logo Rings */}
-            <circle
-              className="animate-trace-in fill-none stroke-current"
-              style={{ '--delay': '1s' } as React.CSSProperties}
-              cx="100"
-              cy="100"
-              r="60"
-              strokeWidth="2"
-              strokeDasharray="377"
-              strokeDashoffset="377"
-            />
-            <circle
-              className="animate-trace-in fill-none stroke-current"
-              style={{ '--delay': '1.2s' } as React.CSSProperties}
-              cx="100"
-              cy="100"
-              r="70"
-              strokeWidth="1"
-              strokeDasharray="440"
-              strokeDashoffset="440"
-            />
-            <circle
-              className="animate-trace-in fill-none stroke-current"
-              style={{ '--delay': '1.4s' } as React.CSSProperties}
-              cx="100"
-              cy="100"
-              r="80"
-              strokeWidth="2"
-              strokeDasharray="503"
-              strokeDashoffset="503"
-            />
-            {/* New animated arcs */}
-             <path
-              className="animate-trace-in fill-none stroke-current"
-              style={{ '--delay': '2.2s', strokeDasharray: 90, strokeDashoffset: 90 } as React.CSSProperties}
-              d="M 20 100 A 80 80 0 0 1 100 20"
-              strokeWidth="1"
-            />
-            <path
-              className="animate-trace-in fill-none stroke-current"
-              style={{ '--delay': '2.3s', strokeDasharray: 90, strokeDashoffset: 90 } as React.CSSProperties}
-              d="M 100 180 A 80 80 0 0 1 20 100"
-              strokeWidth="1"
-              transform="rotate(180 100 100)"
-            />
+            <g className="fill-none stroke-current">
+                <circle
+                  className="animate-trace-in"
+                  style={{ '--delay': '1s' } as React.CSSProperties}
+                  cx="100"
+                  cy="100"
+                  r="60"
+                  strokeWidth="2"
+                  strokeDasharray="377"
+                  strokeDashoffset="377"
+                />
+                <circle
+                  className="animate-trace-in"
+                  style={{ '--delay': '1.2s' } as React.CSSProperties}
+                  cx="100"
+                  cy="100"
+                  r="70"
+                  strokeWidth="1"
+                  strokeDasharray="440"
+                  strokeDashoffset="440"
+                />
+                <circle
+                  className="animate-trace-in"
+                  style={{ '--delay': '1.4s' } as React.CSSProperties}
+                  cx="100"
+                  cy="100"
+                  r="80"
+                  strokeWidth="2"
+                  strokeDasharray="503"
+                  strokeDashoffset="503"
+                />
+                {/* New animated arcs */}
+                 <path
+                  className="animate-trace-in"
+                  style={{ '--delay': '2.2s', strokeDasharray: 90, strokeDashoffset: 90 } as React.CSSProperties}
+                  d="M 20 100 A 80 80 0 0 1 100 20"
+                  strokeWidth="1"
+                />
+                <path
+                  className="animate-trace-in"
+                  style={{ '--delay': '2.3s', strokeDasharray: 90, strokeDashoffset: 90 } as React.CSSProperties}
+                  d="M 100 180 A 80 80 0 0 1 20 100"
+                  strokeWidth="1"
+                  transform="rotate(180 100 100)"
+                />
 
-            {/* Inner details */}
-            <path
-              className="animate-trace-in fill-none stroke-current"
-              style={{ '--delay': '1.8s' } as React.CSSProperties}
-              d="M100 50 V 150 M50 100 H 150"
-              strokeWidth="1"
-              strokeDasharray="200"
-              strokeDashoffset="200"
-            />
-             <path
-              className="animate-trace-in fill-none stroke-current"
-              style={{ '--delay': '2s' } as React.CSSProperties}
-              d="M 71.7 71.7 L 128.3 128.3 M 71.7 128.3 L 128.3 71.7"
-              strokeWidth="1"
-              strokeDasharray="160"
-              strokeDashoffset="160"
-            />
+                {/* Inner details */}
+                <path
+                  className="animate-trace-in"
+                  style={{ '--delay': '1.8s' } as React.CSSProperties}
+                  d="M100 50 V 150 M50 100 H 150"
+                  strokeWidth="1"
+                  strokeDasharray="200"
+                  strokeDashoffset="200"
+                />
+                 <path
+                  className="animate-trace-in"
+                  style={{ '--delay': '2s' } as React.CSSProperties}
+                  d="M 71.7 71.7 L 128.3 128.3 M 71.7 128.3 L 128.3 71.7"
+                  strokeWidth="1"
+                  strokeDasharray="160"
+                  strokeDashoffset="160"
+                />
+            </g>
           </g>
         </svg>
       </div>
