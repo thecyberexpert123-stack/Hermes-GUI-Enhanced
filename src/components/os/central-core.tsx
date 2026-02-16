@@ -39,7 +39,7 @@ const CentralCore = () => {
     if (typeof window === 'undefined') return;
     const newParticles = Array.from({ length: 100 }).map(() => {
       const angle = Math.random() * 2 * Math.PI;
-      const radius = 50 + Math.random() * 200;
+      const radius = 30 + Math.random() * 120;
       return {
         '--size': `${Math.random() * 2 + 1}px`,
         '--x-start': `${Math.cos(angle) * radius}px`,
@@ -126,7 +126,7 @@ const CentralCore = () => {
     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
       <div
         ref={containerRef}
-        className="relative flex h-[400px] w-[400px] flex-col items-center justify-center"
+        className="relative flex h-[300px] w-[300px] flex-col items-center justify-center"
         style={{ perspective: '1000px' }}
       >
         <div
@@ -324,7 +324,7 @@ const CentralCore = () => {
                 className="absolute inset-0 animate-orbit"
                 style={{
                   ...style,
-                  '--radius': `${180 + i * 8}px`,
+                  '--radius': `${130 + i * 2}px`,
                   '--duration': `${10 + i * 2}s`,
                 }}
               >
@@ -350,12 +350,12 @@ const CentralCore = () => {
                   orbitron.className
                 )}
               >
-                <div className="text-5xl font-bold tracking-[0.2em] [text-shadow:0_0_15px_hsl(var(--primary))]">
+                <div className="text-4xl font-bold tracking-[0.2em] [text-shadow:0_0_15px_hsl(var(--primary))]">
                   JARVIS
                 </div>
               </div>
               <div className="absolute inset-0 flex items-center justify-center text-primary opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-                <Mic className="h-16 w-16 text-accent [filter:drop-shadow(0_0_10px_hsl(var(--accent)))]" />
+                <Mic className="h-12 w-12 text-accent [filter:drop-shadow(0_0_10px_hsl(var(--accent)))]" />
               </div>
             </button>
           </DialogTrigger>

@@ -24,7 +24,7 @@ const VoiceHUD = ({ closeDialog }: VoiceHUDProps) => {
     if (typeof window === 'undefined') return;
     const newParticles = Array.from({ length: 100 }).map(() => {
       const angle = Math.random() * 2 * Math.PI;
-      const radius = 50 + Math.random() * 250;
+      const radius = 30 + Math.random() * 120;
       return {
         '--size': `${Math.random() * 2 + 1}px`,
         '--x-start': `${Math.cos(angle) * radius}px`,
@@ -102,7 +102,7 @@ const VoiceHUD = ({ closeDialog }: VoiceHUDProps) => {
 
   return (
     <div className={cn("relative flex flex-col items-center justify-center transition-opacity duration-500", show ? 'opacity-100' : 'opacity-0')}>
-      <div ref={containerRef} className="h-[500px] w-[500px]" style={{ perspective: '1000px' }}>
+      <div ref={containerRef} className="h-[300px] w-[300px]" style={{ perspective: '1000px' }}>
         <div ref={coreRef} className="relative h-full w-full transition-transform duration-300 ease-out" style={{ transformStyle: 'preserve-3d' }}>
           
           <div className="absolute inset-0 rounded-full bg-primary/5 blur-3xl animate-pulse-slow" style={{ transform: 'translateZ(-150px)' }} />
@@ -181,14 +181,14 @@ const VoiceHUD = ({ closeDialog }: VoiceHUDProps) => {
           <div className="absolute inset-[32%] rounded-full" style={{ transform: 'translateZ(60px)', transformStyle: 'preserve-3d' }}>
             <div className="absolute inset-0 rounded-full bg-primary/20 animate-breathing-glow" />
             <div className="absolute inset-0 rounded-full border-2 border-primary animate-holographic-flicker" />
-            <div className={cn("absolute inset-0 flex items-center justify-center text-5xl font-bold tracking-[0.2em] text-primary/90 [text-shadow:0_0_15px_hsl(var(--primary))]", orbitron.className)}>
+            <div className={cn("absolute inset-0 flex items-center justify-center text-4xl font-bold tracking-[0.2em] text-primary/90 [text-shadow:0_0_15px_hsl(var(--primary))]", orbitron.className)}>
               JARVIS
             </div>
           </div>
 
           <div className="absolute inset-0" style={{ transform: 'translateZ(80px)', transformStyle: 'preserve-3d' }}>
             {particles.slice(60, 70).map((style, i) => (
-              <div key={i} className="absolute inset-0 animate-orbit" style={{ ...style, '--radius': `${180 + i * 8}px`, '--duration': `${10 + i * 2}s` }}>
+              <div key={i} className="absolute inset-0 animate-orbit" style={{ ...style, '--radius': `${130 + i * 2}px`, '--duration': `${10 + i * 2}s` }}>
                 <div className="absolute left-1/2 top-1/2 h-1.5 w-1.5 rounded-full bg-accent" style={{ transform: 'translateX(var(--radius))' }} />
               </div>
             ))}
