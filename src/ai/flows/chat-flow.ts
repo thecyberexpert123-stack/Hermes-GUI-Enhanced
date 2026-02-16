@@ -8,8 +8,7 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
-import { Part } from 'genkit/cohere';
+import { Part, z } from 'genkit';
 
 const ChatInputSchema = z.object({
   history: z.array(z.any()).describe('The chat history.'),
