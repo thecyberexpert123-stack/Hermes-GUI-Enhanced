@@ -18,7 +18,7 @@ const LoopingVoiceHUD = () => {
     // Generate particles only once on mount
     const newParticles = Array.from({ length: 100 }).map(() => {
       const angle = Math.random() * 2 * Math.PI;
-      const radius = 30 + Math.random() * 120;
+      const radius = 50 + Math.random() * 150;
       return {
         '--size': `${Math.random() * 2 + 1}px`,
         '--x-start': `${Math.cos(angle) * radius}px`,
@@ -101,7 +101,7 @@ const LoopingVoiceHUD = () => {
 
   return (
     <div className="relative flex flex-col items-center justify-center">
-      <div ref={containerRef} className="h-[300px] w-[300px]" style={{ perspective: '1000px' }}>
+      <div ref={containerRef} className="h-[400px] w-[400px]" style={{ perspective: '1000px' }}>
         <div ref={coreRef} className="relative h-full w-full transition-transform duration-300 ease-out" style={{ transformStyle: 'preserve-3d' }}>
           
           {/* BG Layers */}
@@ -194,7 +194,7 @@ const LoopingVoiceHUD = () => {
           {/* Orbiting Particles */}
           <div className="absolute inset-0" style={{ transform: 'translateZ(80px)', transformStyle: 'preserve-3d' }}>
             {particles.slice(60, 70).map((style, i) => (
-              <div key={i} className="absolute inset-0 animate-orbit" style={{ ...style, '--radius': `${130 + i * 2}px`, '--duration': `${10 + i * 2}s` }}>
+              <div key={i} className="absolute inset-0 animate-orbit" style={{ ...style, '--radius': `${180 + i * 2}px`, '--duration': `${10 + i * 2}s` }}>
                 <div className="absolute left-1/2 top-1/2 h-1.5 w-1.5 rounded-full bg-accent" style={{ transform: 'translateX(var(--radius))' }} />
               </div>
             ))}
