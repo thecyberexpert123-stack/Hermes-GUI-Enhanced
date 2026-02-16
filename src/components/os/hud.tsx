@@ -28,6 +28,12 @@ const HUD = ({ setMode }: { setMode: (mode: AppMode) => void }) => {
         <div className={boostOverlayClass} style={{
             backgroundImage: 'radial-gradient(circle, hsl(var(--primary) / 0.3) 0%, transparent 60%)',
         }}/>
+        <div className={cn(
+            "fixed inset-0 z-[60] pointer-events-none bg-[radial-gradient(ellipse_at_center,_transparent_60%,_black_100%)] opacity-0",
+            {
+              'animate-vignette-pulse': metrics.boostStatus === 'boosting',
+            }
+        )} />
 
         <div className="h-full w-full grid grid-cols-3 grid-rows-3 gap-4">
             {/* Top Row */}

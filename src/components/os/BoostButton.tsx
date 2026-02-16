@@ -23,11 +23,11 @@ const BoostButton = ({ boostStatus, onClick }: BoostButtonProps) => {
             onClick={onClick} 
             disabled={!isIdle} 
             className={cn(
-                "w-56 text-lg tracking-wider transition-all duration-300",
+                "w-64 text-lg tracking-wider transition-all duration-300",
                 "bg-primary/10 text-primary border-2 border-primary/50 hover:bg-primary/20 hover:border-primary hover:shadow-[0_0_15px_hsl(var(--primary)/0.5)]",
                 "disabled:opacity-70",
                 {
-                    "animate-pulse": isBoosting,
+                    "animate-pulse border-primary shadow-[0_0_25px_3px_hsl(var(--primary))]": isBoosting,
                     "border-green-400 text-green-400": isCooling,
                 }
             )}

@@ -218,6 +218,10 @@ export default {
           '25%': { opacity: '1' },
           '100%': { opacity: '0' },
         },
+        'vignette-pulse': {
+            '0%, 100%': { opacity: '0' },
+            '50%': { opacity: '0.7' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
@@ -245,6 +249,7 @@ export default {
         'particle-swirl': 'particle-swirl 6s ease-in-out forwards',
         'circuit-pulse': 'circuit-pulse 5s ease-in-out infinite',
         'boost-flash': 'boost-flash 0.5s ease-out forwards',
+        'vignette-pulse': 'vignette-pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) forwards',
       },
     },
   },
