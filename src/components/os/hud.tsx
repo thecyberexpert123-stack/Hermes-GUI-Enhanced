@@ -55,7 +55,7 @@ const HUD = ({ setMode }: { setMode: (mode: AppMode) => void }) => {
                 <CentralCore />
             </div>
             <div className="col-span-1 row-span-1 flex items-center justify-end">
-                <div className="flex flex-col gap-8">
+                <div className="flex flex-col gap-4">
                     <InfoListPanel title="User PC Specs" items={Object.entries(metrics.specs).map(([key, value]) => `${key.toUpperCase()}: ${value}`)} />
                     <InfoListPanel title="Opened Apps" items={metrics.openedApps} />
                 </div>
