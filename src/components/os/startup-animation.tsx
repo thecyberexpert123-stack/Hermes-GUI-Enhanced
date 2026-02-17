@@ -115,7 +115,7 @@ const StartupAnimation = () => {
               {particleStyles.map((style, i) => (
                 <circle
                   key={`particle-${i}`}
-                  r="1"
+                  r="1.5"
                   className="animate-particle-stream"
                   style={style}
                   fill="hsl(var(--accent))"
@@ -139,7 +139,7 @@ const StartupAnimation = () => {
                           stroke="hsl(var(--accent)/0.5)"
                           style={{ strokeDasharray: 80, strokeDashoffset: 80, animationDelay: '0.5s' }}
                       />
-                      <use href="#electric-bolt" transform="translate(200 30) scale(1.5)" className="animate-electric-flow" style={{ animationDelay: '1s' }} />
+                      <use href="#electric-bolt" transform="translate(200 30) scale(1.5)" className="animate-electric-flow" style={{ animationDelay: '1s', '--length': 60 } as React.CSSProperties} />
                     </g>
                 ))}
                 <circle cx="200" cy="200" r="190" strokeWidth="0.5" className="animate-boot-path-draw" style={{ strokeDasharray: 1194, strokeDashoffset: 1194 }} />
@@ -153,7 +153,7 @@ const StartupAnimation = () => {
                       style={{ strokeDasharray: 900, strokeDashoffset: 900, animationDelay: '1.5s', animationDuration: '2s' }}/>
                 <path d="M200 80 L295.26 140 L295.26 260 L200 320 L104.74 260 L104.74 140 Z" strokeWidth="1.5" 
                       className="animate-boot-path-draw"
-                      style={{ strokeDasharray: 691, strokeDashoffset: 691, animationDelay: '2s', animationDuration: '2s' }}/>
+                      style={{ strokeDasharray: 720, strokeDashoffset: 720, animationDelay: '2s', animationDuration: '2s' }}/>
                 {[0, 1, 2, 3, 4, 5].map(i => (
                     <path key={`hex-connect-${i}`}
                         transform={`rotate(${i * 60} 200 200)`}

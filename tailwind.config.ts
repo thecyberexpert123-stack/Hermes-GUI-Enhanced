@@ -248,12 +248,14 @@ export default {
         'particle-stream': {
           '0%': {
             transform: 'rotate(var(--angle)) translateX(300px) scale(1.5)',
-            opacity: '1'
+            opacity: '0',
           },
+          '20%': { opacity: '1' },
+          '80%': { opacity: '1' },
           '100%': {
             transform: 'rotate(var(--angle)) translateX(45px) scale(0)',
-            opacity: '0'
-          }
+            opacity: '0',
+          },
         },
         'boot-shockwave-1': {
           '0%': { r: '40px', 'stroke-opacity': '1', strokeWidth: '5px' },
@@ -264,11 +266,20 @@ export default {
           '100%': { r: '300px', 'stroke-opacity': '0' }
         },
         'electric-flow': {
+          'from': { 'stroke-dashoffset': 'var(--length, 200)' },
+          '50%': { stroke: 'rgba(255, 255, 255, 0.8)', 'stroke-width': '1.5px' },
           'to': { 'stroke-dashoffset': '0' }
         },
         'particle-burst': {
-          'from': { transform: 'rotate(var(--angle)) translateX(40px) scale(1)', opacity: '1'},
-          'to': { transform: 'rotate(var(--angle)) translateX(200px) scale(0)', opacity: '0'}
+          'from': {
+            transform: 'rotate(var(--angle)) translateX(40px) scale(1)',
+            opacity: '1',
+          },
+          '70%': { opacity: '1' },
+          'to': {
+            transform: 'rotate(var(--angle)) translateX(200px) scale(0)',
+            opacity: '0',
+          },
         },
         'gyro-1': {
           from: { transform: 'rotateX(70deg) rotateZ(0deg)'},
@@ -324,7 +335,7 @@ export default {
         'particle-stream': 'particle-stream var(--duration) ease-out var(--delay) forwards',
         'boot-shockwave-1': 'boot-shockwave-1 1s 5.8s ease-out forwards',
         'boot-shockwave-2': 'boot-shockwave-2 1.5s 5.9s ease-out forwards',
-        'electric-flow': 'electric-flow 1s 1s ease-in forwards',
+        'electric-flow': 'electric-flow 1s ease-in forwards',
         'particle-burst': 'particle-burst 1.5s ease-out forwards var(--delay, 0s)',
         'gyro-1': 'gyro-1 4s 3.5s ease-in-out forwards',
         'gyro-2': 'gyro-2 4s 4s ease-in-out forwards',
