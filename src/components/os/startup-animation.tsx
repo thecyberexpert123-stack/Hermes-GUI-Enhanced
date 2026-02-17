@@ -20,7 +20,7 @@ const SystemLog = ({ lines, startDelay }: { lines: string[]; startDelay: number 
                 } else {
                     clearInterval(interval);
                 }
-            }, 75); // Time between each line appearing
+            }, 50); // Time between each line appearing
 
             return () => clearInterval(interval);
         }, startDelay);
@@ -49,7 +49,7 @@ const StartupAnimation = () => {
     // Generate styles for particles on the client side to avoid hydration mismatch
     const newParticleStyles = Array.from({ length: 50 }).map(() => ({
       '--angle': `${Math.random() * 360}deg`,
-      '--delay': `${Math.random() * 5 + 4}s`,
+      '--delay': `${Math.random() * 3 + 2}s`,
       '--duration': `${Math.random() * 1 + 0.5}s`,
     } as React.CSSProperties));
     setParticleStyles(newParticleStyles);
@@ -73,7 +73,7 @@ const StartupAnimation = () => {
     '[7.500] WELCOME, SIR.',
   ];
 
-  const totalBootTime = 10000; // 10 seconds
+  const totalBootTime = 8000; // 8 seconds
 
   return (
     <div className="flex h-screen w-screen flex-col items-center justify-center gap-8 overflow-hidden bg-background text-primary">
@@ -192,8 +192,8 @@ const StartupAnimation = () => {
                 <circle cx="200" cy="200" r="55" strokeWidth="0.75" className="animate-boot-path-draw animate-boot-core-pulse" style={{ strokeDasharray: 345, strokeDashoffset: 345, animationDelay: '5.2s', animationDirection: 'reverse' }}/>
                 
                 {/* Shockwave effects */}
-                <circle cx="200" cy="200" r="0" strokeWidth="2" className="animate-boot-shockwave" stroke="hsl(var(--accent))" style={{animationDelay: '5.1s'}} />
-                <circle cx="200" cy="200" r="0" strokeWidth="2" className="animate-boot-shockwave" stroke="hsl(var(--primary))" style={{animationDelay: '5.3s', animationDuration: '1.5s'}} />
+                <circle cx="200" cy="200" r="0" strokeWidth="2" className="animate-boot-shockwave" stroke="hsl(var(--accent))" style={{animationDelay: '4.1s'}} />
+                <circle cx="200" cy="200" r="0" strokeWidth="2" className="animate-boot-shockwave" stroke="hsl(var(--primary))" style={{animationDelay: '4.3s', animationDuration: '1.5s'}} />
                 
                 {/* Outward particle burst */}
                  {Array.from({length: 40}).map((_, i) => (
@@ -205,7 +205,7 @@ const StartupAnimation = () => {
                     className="animate-particle-burst"
                     style={{
                         '--angle': `${i * 9}deg`,
-                        '--delay': `5.2s`,
+                        '--delay': `4.2s`,
                     } as React.CSSProperties}
                     />
                 ))}
@@ -226,7 +226,7 @@ const StartupAnimation = () => {
 
       {/* System Status Text */}
       <div className="z-10 animate-boot-log-appear opacity-0">
-        <SystemLog lines={systemCheckLines} startDelay={7500} />
+        <SystemLog lines={systemCheckLines} startDelay={5500} />
       </div>
 
       {/* Final Fadeout Overlay */}

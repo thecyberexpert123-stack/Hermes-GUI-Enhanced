@@ -15,7 +15,7 @@ export default function Home() {
   useEffect(() => {
     const bootTimer = setTimeout(() => {
       setBooting(false);
-    }, 10000); // Corresponds to the length of the startup animation
+    }, 8000); // Corresponds to the length of the startup animation
 
     return () => clearTimeout(bootTimer);
   }, []);
