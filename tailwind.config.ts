@@ -96,43 +96,6 @@ export default {
           from: { transform: 'rotate(0deg)' },
           to: { transform: 'rotate(360deg)' },
         },
-        'trace-in': {
-          to: { strokeDashoffset: '0' },
-        },
-        'particle-line-in': {
-          '0%': {
-            transform: 'translate(calc(100px + cos(var(--angle)) * 250px), calc(100px + sin(var(--angle)) * 250px)) rotate(var(--angle))',
-            opacity: '0',
-          },
-          '20%, 80%': {
-            opacity: '1',
-          },
-          '100%': {
-            transform: 'translate(calc(100px + cos(var(--angle)) * var(--radius)), calc(100px + sin(var(--angle)) * var(--radius))) rotate(var(--angle))',
-            opacity: '0',
-          },
-        },
-        'jarvis-letter-in': {
-          '0%': {
-            opacity: '0',
-            transform: 'translateY(20px) scale(0.8)',
-            filter: 'blur(5px)',
-          },
-          '40%': {
-            opacity: '1',
-            filter: 'blur(0)',
-            textShadow: '0 0 25px hsl(var(--primary)), 0 0 10px hsl(var(--accent))'
-          },
-          '100%': {
-            opacity: '1',
-            transform: 'translateY(0) scale(1)',
-            textShadow: 'none'
-          }
-        },
-        'scanline': {
-          '0%': { transform: 'translateY(-100%)' },
-          '100%': { transform: 'translateY(200%)' },
-        },
         'pulse-slow': {
           '0%, 100%': { opacity: '0.5', transform: 'scale(1)' },
           '50%': { opacity: '1', transform: 'scale(1.02)' },
@@ -246,7 +209,7 @@ export default {
         },
         'boot-core-pulse': {
             '0%, 100%': { transform: 'scale(1)', opacity: '0.5', strokeWidth: '0.5' },
-            '50%': { transform: 'scale(1.1)', opacity: '1', strokeWidth: '1' },
+            '50%': { transform: 'scale(1.1)', opacity: '1', strokeWidth: '1.5' },
         },
         'boot-text-reveal': {
             'from': { opacity: '0', transform: 'scale(0.9)' },
@@ -276,16 +239,26 @@ export default {
             'from': { opacity: '0' },
             'to': { opacity: '1' },
         },
+        'particle-stream': {
+          '0%': {
+            transform: 'rotate(var(--angle)) translateX(300px) scale(1.5)',
+            opacity: '1'
+          },
+          '100%': {
+            transform: 'rotate(var(--angle)) translateX(45px) scale(0)',
+            opacity: '0'
+          }
+        },
+        'boot-shockwave': {
+          'from': { r: '0', 'stroke-opacity': '1' },
+          'to': { r: '100px', 'stroke-opacity': '0' }
+        }
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
         'fade-in': 'fade-in 1s cubic-bezier(0.215, 0.610, 0.355, 1.000) forwards',
         'spin-slow': 'spin-slow 25s linear infinite',
-        'trace-in': 'trace-in 2s cubic-bezier(0.215, 0.610, 0.355, 1.000) 1s forwards',
-        'particle-line-in': 'particle-line-in var(--duration) cubic-bezier(0.4, 0, 0.2, 1) var(--delay) forwards',
-        'jarvis-letter-in': 'jarvis-letter-in 1.2s cubic-bezier(0.215, 0.610, 0.355, 1.000) forwards',
-        'scanline': 'scanline 1s linear 3s',
         'pulse-slow': 'pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'fade-in-out': 'fade-in-out forwards',
         'flicker': 'flicker 2.5s linear infinite',
@@ -304,7 +277,7 @@ export default {
         'circuit-pulse': 'circuit-pulse 5s ease-in-out infinite',
         'boost-flash': 'boost-flash 0.5s ease-out forwards',
         'vignette-pulse': 'vignette-pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) forwards',
-        'boot-grid-in': 'boot-grid-in 2s ease-out forwards',
+        'boot-grid-in': 'boot-grid-in 1s 0s ease-out forwards',
         'boot-scanner': 'boot-scanner 1.5s linear forwards',
         'boot-phase-1-in': 'boot-phase-1-in 0.5s 0.2s forwards',
         'boot-phase-2-in': 'boot-phase-2-in 0.5s 1.5s forwards',
@@ -312,7 +285,7 @@ export default {
         'boot-phase-4-in': 'boot-phase-4-in 0.5s 5s forwards',
         'boot-path-draw': 'boot-path-draw 1.5s ease-out forwards',
         'boot-core-ignite': 'boot-core-ignite 1s 5s ease-in-out forwards',
-        'boot-core-pulse': 'boot-core-pulse 3s infinite ease-in-out',
+        'boot-core-pulse': 'boot-core-pulse 3s infinite ease-in-out 5.5s',
         'boot-text-reveal': 'boot-text-reveal 1s 6s ease-out forwards',
         'boot-text-fill': 'boot-text-fill 2s 6.5s ease-in-out forwards',
         'boot-text-scanline': 'boot-text-scanline 1s 6.8s ease-in-out',
@@ -320,6 +293,8 @@ export default {
         'log-scroll': 'log-scroll 10s linear',
         'log-line-flicker': 'log-line-flicker 2s infinite',
         'boot-fade-out': 'boot-fade-out 0.5s linear forwards',
+        'particle-stream': 'particle-stream var(--duration) ease-out var(--delay) forwards',
+        'boot-shockwave': 'boot-shockwave 1s ease-out forwards'
       },
     },
   },

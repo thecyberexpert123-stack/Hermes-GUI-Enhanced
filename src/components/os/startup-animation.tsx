@@ -70,11 +70,10 @@ const StartupAnimation = () => {
         <div className="absolute inset-[-100%] animate-boot-grid-in opacity-0"
             style={{
                 backgroundImage: `
-                    linear-gradient(150deg, hsl(var(--primary)/0.03) 1px, transparent 1px),
-                    linear-gradient(30deg, hsl(var(--primary)/0.03) 1px, transparent 1px),
-                    linear-gradient(90deg, hsl(var(--primary)/0.03) 1px, transparent 1px)
+                    linear-gradient(hsl(var(--primary)/0.05) 1px, transparent 1px),
+                    linear-gradient(to right, hsl(var(--primary)/0.05) 1px, transparent 1px)
                 `,
-                backgroundSize: '3rem 5.2rem',
+                backgroundSize: '2rem 2rem',
             }}
         />
         <div className="absolute top-0 left-0 h-full w-full animate-boot-scanner bg-gradient-to-b from-primary/10 to-transparent opacity-0" />
@@ -90,7 +89,7 @@ const StartupAnimation = () => {
         >
           <defs>
             <filter id="ultraGlow" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="3" result="coloredBlur" />
+              <feGaussianBlur stdDeviation="4" result="coloredBlur" />
               <feMerge>
                 <feMergeNode in="coloredBlur" />
                 <feMergeNode in="SourceGraphic" />
@@ -100,30 +99,48 @@ const StartupAnimation = () => {
                 <stop offset="0%" stopColor="hsl(var(--accent))" />
                 <stop offset="100%" stopColor="hsl(var(--primary))" />
             </radialGradient>
+            {/* Streaking particle effect */}
+            <g id="particle-stream">
+              {Array.from({length: 50}).map((_, i) => (
+                <circle
+                  key={`particle-${i}`}
+                  r="1"
+                  className="animate-particle-stream"
+                  style={{
+                    '--angle': `${Math.random() * 360}deg`,
+                    '--delay': `${Math.random() * 5 + 4}s`,
+                    '--duration': `${Math.random() * 1 + 0.5}s`,
+                  } as React.CSSProperties}
+                  fill="hsl(var(--accent))"
+                  />
+              ))}
+            </g>
           </defs>
           
+          {/* All animated SVG elements */}
           <g filter="url(#ultraGlow)" className="fill-none stroke-current">
+            
             {/* Phase 1: Outer Structure & Energy Feed */}
             <g className="animate-boot-phase-1-in opacity-0">
-                {/* Energy feed lines */}
-                {[0, 90, 180, 270].map(angle => (
+                {/* Energy feed lines - more complex paths */}
+                {[0, 45, 90, 135, 180, 225, 270, 315].map(angle => (
                     <path key={`feed-${angle}`}
                         transform={`rotate(${angle} 200 200)`}
-                        d="M 200 0 L 200 120"
+                        d="M 200 0 L 200 80 M 160 40 L 200 80 L 240 40"
                         strokeWidth="0.5"
                         className="animate-boot-path-draw"
                         stroke="hsl(var(--accent)/0.5)"
-                        style={{ strokeDasharray: 120, strokeDashoffset: 120, animationDelay: '0.5s' }}
+                        style={{ strokeDasharray: 201, strokeDashoffset: 201, animationDelay: '0.5s' }}
                     />
                 ))}
                 {/* Outer targeting circles */}
-                <circle cx="200" cy="200" r="190" strokeWidth="0.2" className="animate-boot-path-draw" style={{ strokeDasharray: 1200, strokeDashoffset: 1200 }} />
-                <circle cx="200" cy="200" r="180" strokeWidth="0.5" strokeDasharray="5 15" className="animate-boot-path-draw animate-[spin_40s_linear_infinite]" style={{ strokeDasharray: 1131, strokeDashoffset: 1131, animationDelay: '0.2s' }} />
+                <circle cx="200" cy="200" r="190" strokeWidth="0.5" className="animate-boot-path-draw" style={{ strokeDasharray: 1194, strokeDashoffset: 1194 }} />
+                <circle cx="200" cy="200" r="180" strokeWidth="0.75" strokeDasharray="5 15" className="animate-boot-path-draw animate-[spin_40s_linear_infinite]" style={{ strokeDasharray: 1131, strokeDashoffset: 1131, animationDelay: '0.2s' }} />
             </g>
 
             {/* Phase 2: Main Hexagon Assembly */}
             <g className="animate-boot-phase-2-in opacity-0">
-                <path d="M200 50 L329.9 125 L329.9 275 L200 350 L70.1 275 L70.1 125 Z" strokeWidth="2" 
+                <path d="M200 50 L329.9 125 L329.9 275 L200 350 L70.1 275 L70.1 125 Z" strokeWidth="2.5" 
                       className="animate-boot-path-draw"
                       style={{ strokeDasharray: 780, strokeDashoffset: 780, animationDelay: '1.5s', animationDuration: '2s' }}/>
                 {/* Hexagon inner connections */}
@@ -131,24 +148,28 @@ const StartupAnimation = () => {
                     <path key={`hex-connect-${i}`}
                         transform={`rotate(${i * 60} 200 200)`}
                         d="M 200 200 L 200 50"
-                        strokeWidth="0.5"
+                        strokeWidth="0.75"
                         className="animate-boot-path-draw"
                         style={{ strokeDasharray: 150, strokeDashoffset: 150, animationDelay: '2.5s' }}
                     />
                 ))}
             </g>
 
-            {/* Phase 3: Spinning Inner Rings */}
+            {/* Phase 3: Spinning Inner Rings & Particle Stream */}
             <g className="animate-boot-phase-3-in opacity-0">
-                <circle cx="200" cy="200" r="100" strokeWidth="1.5" className="animate-boot-path-draw animate-[spin_10s_linear_infinite]" style={{ strokeDasharray: 628, strokeDashoffset: 628, animationDelay: '3.5s' }}/>
-                <circle cx="200" cy="200" r="80" strokeWidth="1" strokeDasharray="10 10" className="animate-boot-path-draw animate-[spin_8s_linear_infinite_reverse]" style={{ strokeDasharray: 502, strokeDashoffset: 502, animationDelay: '4s' }}/>
+                <circle cx="200" cy="200" r="100" strokeWidth="2" className="animate-boot-path-draw animate-[spin_10s_linear_infinite]" style={{ strokeDasharray: 628, strokeDashoffset: 628, animationDelay: '3.5s' }}/>
+                <circle cx="200" cy="200" r="80" strokeWidth="1.5" strokeDasharray="10 10" className="animate-boot-path-draw animate-[spin_8s_linear_infinite_reverse]" style={{ strokeDasharray: 502, strokeDashoffset: 502, animationDelay: '4s' }}/>
+                {/* Particle stream effect */}
+                <use href="#particle-stream" />
             </g>
 
-            {/* Phase 4: Central Core Ignition */}
+            {/* Phase 4: Central Core Ignition & Shockwave */}
             <g className="animate-boot-phase-4-in opacity-0">
                 <circle cx="200" cy="200" r="40" fill="url(#coreGradient)" className="animate-boot-core-ignite" style={{ transformOrigin: 'center' }} />
-                <circle cx="200" cy="200" r="50" strokeWidth="1" className="animate-boot-path-draw animate-boot-core-pulse" style={{ strokeDasharray: 314, strokeDashoffset: 314, animationDelay: '5s' }}/>
-                <circle cx="200" cy="200" r="55" strokeWidth="0.5" className="animate-boot-path-draw animate-boot-core-pulse" style={{ strokeDasharray: 345, strokeDashoffset: 345, animationDelay: '5.2s', animationDirection: 'reverse' }}/>
+                <circle cx="200" cy="200" r="50" strokeWidth="1.5" className="animate-boot-path-draw animate-boot-core-pulse" style={{ strokeDasharray: 314, strokeDashoffset: 314, animationDelay: '5s' }}/>
+                <circle cx="200" cy="200" r="55" strokeWidth="0.75" className="animate-boot-path-draw animate-boot-core-pulse" style={{ strokeDasharray: 345, strokeDashoffset: 345, animationDelay: '5.2s', animationDirection: 'reverse' }}/>
+                {/* Shockwave effect */}
+                <circle cx="200" cy="200" r="0" strokeWidth="2" className="animate-boot-shockwave" stroke="hsl(var(--accent))" style={{animationDelay: '5.1s'}} />
             </g>
           </g>
         </svg>
