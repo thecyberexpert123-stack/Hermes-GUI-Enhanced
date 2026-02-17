@@ -43,6 +43,19 @@ const SystemLog = ({ lines, startDelay }: { lines: string[]; startDelay: number 
 
 
 const StartupAnimation = () => {
+  const [particleStyles, setParticleStyles] = useState<React.CSSProperties[]>([]);
+
+  useEffect(() => {
+    // Generate styles for particles on the client side to avoid hydration mismatch
+    const newParticleStyles = Array.from({ length: 50 }).map(() => ({
+      '--angle': `${Math.random() * 360}deg`,
+      '--delay': `${Math.random() * 5 + 4}s`,
+      '--duration': `${Math.random() * 1 + 0.5}s`,
+    } as React.CSSProperties));
+    setParticleStyles(newParticleStyles);
+  }, []);
+
+
   const systemCheckLines = [
     'NEON OS v1.0 KERNEL-J.A.R.V.I.S.',
     '---------------------------------',
@@ -102,16 +115,12 @@ const StartupAnimation = () => {
             
             {/* Streaking particle effect for convergence */}
             <g id="particle-stream">
-              {Array.from({length: 50}).map((_, i) => (
+              {particleStyles.map((style, i) => (
                 <circle
                   key={`particle-${i}`}
                   r="1"
                   className="animate-particle-stream"
-                  style={{
-                    '--angle': `${Math.random() * 360}deg`,
-                    '--delay': `${Math.random() * 5 + 4}s`,
-                    '--duration': `${Math.random() * 1 + 0.5}s`,
-                  } as React.CSSProperties}
+                  style={style}
                   fill="hsl(var(--accent))"
                   />
               ))}
