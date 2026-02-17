@@ -2,180 +2,174 @@
 
 import { cn } from '@/lib/utils';
 import { Orbitron } from 'next/font/google';
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 const orbitron = Orbitron({ subsets: ['latin'] });
 
-// Helper component for the background grid
-const HexagonGrid = () => (
-    <div className="absolute inset-[-100%] animate-boot-grid-appear opacity-0 [animation-delay:1s]"
-        style={{
-            backgroundImage: `
-                linear-gradient(150deg, hsl(var(--primary)/0.05) 1px, transparent 1px),
-                linear-gradient(30deg, hsl(var(--primary)/0.05) 1px, transparent 1px),
-                linear-gradient(90deg, hsl(var(--primary)/0.05) 1px, transparent 1px)
-            `,
-            backgroundSize: '3rem 5.2rem',
-            backgroundPosition: '0 0, 0 0, 0 0',
-        }}
-    />
-);
-
-// Helper for the final system status text
-const SystemText = ({ lines }: { lines: string[] }) => {
-    const [currentLine, setCurrentLine] = useState(0);
+// Component for the scrolling system check text
+const SystemLog = ({ lines, startDelay }: { lines: string[]; startDelay: number }) => {
+    const [visibleLines, setVisibleLines] = useState<string[]>([]);
 
     useEffect(() => {
-        if (currentLine >= lines.length) return;
+        const timeout = setTimeout(() => {
+            let i = 0;
+            const interval = setInterval(() => {
+                if (i < lines.length) {
+                    setVisibleLines(prev => [...prev, lines[i]]);
+                    i++;
+                } else {
+                    clearInterval(interval);
+                }
+            }, 75); // Time between each line appearing
 
-        const timer = setTimeout(() => {
-            setCurrentLine(currentLine + 1);
-        }, 80);
+            return () => clearInterval(interval);
+        }, startDelay);
 
-        return () => clearTimeout(timer);
-    }, [currentLine, lines.length]);
+        return () => clearTimeout(timeout);
+    }, [lines, startDelay]);
 
     return (
-        <div className="relative h-24 w-64 text-xs font-code tracking-widest text-accent">
-            {lines.slice(0, currentLine).map((line, i) => (
-                <p key={i} className="animate-boot-text-flicker">{line}</p>
-            ))}
+        <div className="relative h-24 w-72 font-code text-xs tracking-wider text-accent/80 overflow-hidden">
+            <div className="absolute bottom-0 left-0 w-full animate-log-scroll">
+                {visibleLines.map((line, i) => (
+                    <p key={i} className="whitespace-nowrap animate-log-line-flicker">
+                        {line}
+                    </p>
+                ))}
+            </div>
         </div>
     );
 };
 
 
-// Main component
 const StartupAnimation = () => {
-  const [particles, setParticles] = useState<React.CSSProperties[]>([]);
-  const [showSystemText, setShowSystemText] = useState(false);
-  const particleCount = 60;
-  const jarvisName = 'JARVIS';
-  
   const systemCheckLines = [
-    '> Bootstrapping NEON OS...',
-    '> Kernel loaded.',
-    '> Initializing J.A.R.V.I.S. Core...',
-    '> AI matrices aligned.',
-    '> Verifying quantum entanglement...',
-    '> All systems nominal.',
+    'NEON OS v1.0 KERNEL-J.A.R.V.I.S.',
+    '---------------------------------',
+    '[0.001] BOOTSTRAP INIT',
+    '[0.152] MEM CHECK: 128 ZB ... OK',
+    '[0.381] CPU: ARK-2500 REACTOR... OK',
+    '[0.455] GPU: STARK GFX-9000... OK',
+    '[0.982] LOADING AI CORE...',
+    '[1.533] ALIGNING HEURISTIC MATRICES',
+    '[2.104] VERIFYING Q-ENTANGLEMENT... SYNCED',
+    '[3.561] SENSORY INPUT... ONLINE',
+    '[4.012] GLOBAL COMMS... ONLINE',
+    '[5.218] UI RENDERER... INITIALIZED',
+    '[6.988] ALL SYSTEMS NOMINAL.',
+    '[7.500] WELCOME.',
   ];
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const newParticles = Array.from({ length: particleCount }).map((_, i) => ({
-        '--angle': `${(i / particleCount) * 360}deg`,
-        '--delay': `${1.8 + Math.random() * 0.5}s`,
-      } as React.CSSProperties));
-      setParticles(newParticles);
-    }
-    
-    const systemTextTimer = setTimeout(() => {
-        setShowSystemText(true);
-    }, 4000);
-    
-    return () => clearTimeout(systemTextTimer);
-  }, []);
+  const totalBootTime = 10000; // 10 seconds
 
   return (
     <div className="flex h-screen w-screen flex-col items-center justify-center gap-8 overflow-hidden bg-background text-primary">
-        
-      {/* Background Effects */}
-      <HexagonGrid />
-      <div className="absolute top-0 left-0 h-full w-1/2 animate-boot-scan-vertical opacity-0 [animation-delay:0.5s]">
-        <div className="h-full w-full bg-gradient-to-r from-primary/5 via-primary/10 to-transparent" />
-      </div>
-       <div className="absolute top-0 right-0 h-full w-1/2 animate-boot-scan-vertical opacity-0 [animation-delay:0.7s]">
-        <div className="h-full w-full bg-gradient-to-l from-primary/5 via-primary/10 to-transparent" />
+      
+      {/* Background Grid & Scanlines */}
+      <div className="absolute inset-0 z-0">
+        <div className="absolute inset-[-100%] animate-boot-grid-in opacity-0"
+            style={{
+                backgroundImage: `
+                    linear-gradient(150deg, hsl(var(--primary)/0.03) 1px, transparent 1px),
+                    linear-gradient(30deg, hsl(var(--primary)/0.03) 1px, transparent 1px),
+                    linear-gradient(90deg, hsl(var(--primary)/0.03) 1px, transparent 1px)
+                `,
+                backgroundSize: '3rem 5.2rem',
+            }}
+        />
+        <div className="absolute top-0 left-0 h-full w-full animate-boot-scanner bg-gradient-to-b from-primary/10 to-transparent opacity-0" />
       </div>
 
       {/* Main Animation Core */}
-      <div className="relative h-80 w-80">
+      <div className="relative h-96 w-96 z-10">
         
-        {/* Converging Energy Lines */}
-        <div className="absolute inset-0">
-          {particles.map((style, i) => (
-            <div key={i} className="absolute top-1/2 left-1/2 h-0.5 w-20 origin-left bg-gradient-to-l from-accent/0 to-accent animate-boot-line-converge opacity-0" style={style} />
-          ))}
-        </div>
-
-        {/* Central Glowing Core */}
-        <div className="absolute inset-[45%] rounded-full animate-boot-core-pulse opacity-0 [animation-delay:1.5s]" />
-
         <svg
-          viewBox="0 0 200 200"
+          viewBox="0 0 400 400"
           className="absolute inset-0 h-full w-full"
           style={{ '--glow-color': 'hsl(var(--primary))' } as React.CSSProperties}
         >
           <defs>
-            <filter id="ultimateGlow">
-              <feGaussianBlur stdDeviation="2.5" result="coloredBlur" />
+            <filter id="ultraGlow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="3" result="coloredBlur" />
               <feMerge>
                 <feMergeNode in="coloredBlur" />
                 <feMergeNode in="SourceGraphic" />
               </feMerge>
             </filter>
-            <mask id="ringMask">
-                <rect width="200" height="200" fill="white" />
-                <circle cx="100" cy="100" r="45" fill="black" />
-            </mask>
+            <radialGradient id="coreGradient">
+                <stop offset="0%" stopColor="hsl(var(--accent))" />
+                <stop offset="100%" stopColor="hsl(var(--primary))" />
+            </radialGradient>
           </defs>
           
-          {/* Animated Glyphs */}
-          <g filter="url(#ultimateGlow)" className="fill-none stroke-current opacity-0 animate-boot-final-glow [animation-delay:2s]">
-            {/* Outer Rings */}
-            <circle cx="100" cy="100" r="95" strokeWidth="0.5" className="animate-boot-path-trace" style={{ animationDelay: '2.1s', strokeDasharray: 600, strokeDashoffset: 600 }} />
-            <circle cx="100" cy="100" r="90" strokeWidth="1" className="animate-boot-path-trace" style={{ animationDelay: '2.2s', strokeDasharray: 565, strokeDashoffset: 565, strokeDasharray: '10 10' }} />
-            
-            {/* Main Hexagon Structure */}
-            {[0, 60, 120, 180, 240, 300].map(angle => (
-                 <path key={`hex-${angle}`}
-                    transform={`rotate(${angle} 100 100)`}
-                    d="M 100 10 L 100 30 M 100 10 L 108.66 15 M 100 10 L 91.34 15"
-                    strokeWidth="1"
-                    className="animate-boot-path-trace"
-                    style={{ animationDelay: '2.4s', strokeDasharray: 40, strokeDashoffset: 40 }}
-                 />
-            ))}
-            <path d="M100 30 L143.3 55 L143.3 105 L100 130 L56.7 105 L56.7 55 Z" strokeWidth="1.5" className="animate-boot-path-trace" style={{ animationDelay: '2.5s', strokeDasharray: 347, strokeDashoffset: 347 }}/>
-
-            {/* Inner Details */}
-            <g mask="url(#ringMask)">
-                <path d="M100 50 V 150 M50 100 H 150" strokeWidth="0.5" strokeOpacity="0.5" className="animate-boot-path-trace" style={{ animationDelay: '2.8s', strokeDasharray: 200, strokeDashoffset: 200 }} />
-                <path d="M 71.7 71.7 L 128.3 128.3 M 71.7 128.3 L 128.3 71.7" strokeWidth="0.5" strokeOpacity="0.5" className="animate-boot-path-trace" style={{ animationDelay: '2.9s', strokeDasharray: 160, strokeDashoffset: 160 }}/>
+          <g filter="url(#ultraGlow)" className="fill-none stroke-current">
+            {/* Phase 1: Outer Structure & Energy Feed */}
+            <g className="animate-boot-phase-1-in opacity-0">
+                {/* Energy feed lines */}
+                {[0, 90, 180, 270].map(angle => (
+                    <path key={`feed-${angle}`}
+                        transform={`rotate(${angle} 200 200)`}
+                        d="M 200 0 L 200 120"
+                        strokeWidth="0.5"
+                        className="animate-boot-path-draw"
+                        stroke="hsl(var(--accent)/0.5)"
+                        style={{ strokeDasharray: 120, strokeDashoffset: 120, animationDelay: '0.5s' }}
+                    />
+                ))}
+                {/* Outer targeting circles */}
+                <circle cx="200" cy="200" r="190" strokeWidth="0.2" className="animate-boot-path-draw" style={{ strokeDasharray: 1200, strokeDashoffset: 1200 }} />
+                <circle cx="200" cy="200" r="180" strokeWidth="0.5" strokeDasharray="5 15" className="animate-boot-path-draw animate-[spin_40s_linear_infinite]" style={{ strokeDasharray: 1131, strokeDashoffset: 1131, animationDelay: '0.2s' }} />
             </g>
 
-             {/* Spinning Rings inside Hexagon */}
-            <circle cx="100" cy="100" r="60" strokeWidth="1" className="animate-boot-path-trace animate-[spin_10s_linear_infinite]" style={{ animationDelay: '2.6s', strokeDasharray: 377, strokeDashoffset: 377 }} />
-            <circle cx="100" cy="100" r="75" strokeWidth="0.5" className="animate-boot-path-trace animate-[spin_15s_linear_infinite_reverse]" style={{ animationDelay: '2.7s', strokeDasharray: 471, strokeDashoffset: 471 }} />
+            {/* Phase 2: Main Hexagon Assembly */}
+            <g className="animate-boot-phase-2-in opacity-0">
+                <path d="M200 50 L329.9 125 L329.9 275 L200 350 L70.1 275 L70.1 125 Z" strokeWidth="2" 
+                      className="animate-boot-path-draw"
+                      style={{ strokeDasharray: 780, strokeDashoffset: 780, animationDelay: '1.5s', animationDuration: '2s' }}/>
+                {/* Hexagon inner connections */}
+                {[0, 1, 2, 3, 4, 5].map(i => (
+                    <path key={`hex-connect-${i}`}
+                        transform={`rotate(${i * 60} 200 200)`}
+                        d="M 200 200 L 200 50"
+                        strokeWidth="0.5"
+                        className="animate-boot-path-draw"
+                        style={{ strokeDasharray: 150, strokeDashoffset: 150, animationDelay: '2.5s' }}
+                    />
+                ))}
+            </g>
 
+            {/* Phase 3: Spinning Inner Rings */}
+            <g className="animate-boot-phase-3-in opacity-0">
+                <circle cx="200" cy="200" r="100" strokeWidth="1.5" className="animate-boot-path-draw animate-[spin_10s_linear_infinite]" style={{ strokeDasharray: 628, strokeDashoffset: 628, animationDelay: '3.5s' }}/>
+                <circle cx="200" cy="200" r="80" strokeWidth="1" strokeDasharray="10 10" className="animate-boot-path-draw animate-[spin_8s_linear_infinite_reverse]" style={{ strokeDasharray: 502, strokeDashoffset: 502, animationDelay: '4s' }}/>
+            </g>
+
+            {/* Phase 4: Central Core Ignition */}
+            <g className="animate-boot-phase-4-in opacity-0">
+                <circle cx="200" cy="200" r="40" fill="url(#coreGradient)" className="animate-boot-core-ignite" style={{ transformOrigin: 'center' }} />
+                <circle cx="200" cy="200" r="50" strokeWidth="1" className="animate-boot-path-draw animate-boot-core-pulse" style={{ strokeDasharray: 314, strokeDashoffset: 314, animationDelay: '5s' }}/>
+                <circle cx="200" cy="200" r="55" strokeWidth="0.5" className="animate-boot-path-draw animate-boot-core-pulse" style={{ strokeDasharray: 345, strokeDashoffset: 345, animationDelay: '5.2s', animationDirection: 'reverse' }}/>
+            </g>
           </g>
         </svg>
       </div>
 
       {/* JARVIS Text Reveal */}
-      <div className="relative flex h-12 items-center justify-center overflow-hidden">
-        <div className="flex">
-          {jarvisName.split('').map((letter, i) => (
-            <span
-              key={i}
-              className={cn(
-                'relative text-4xl font-bold tracking-[0.2em] opacity-0 animate-jarvis-letter-in',
-                orbitron.className
-              )}
-              style={{ animationDelay: `${3.2 + i * 0.1}s` }}
-            >
-              {letter}
-            </span>
-          ))}
-        </div>
-        <div className="absolute top-0 left-0 h-full w-full animate-scanline bg-gradient-to-b from-transparent via-primary/20 to-transparent" style={{ animationDelay: '3.8s'}}/>
+      <div className={cn("relative z-20 flex h-12 items-center justify-center overflow-hidden animate-boot-text-reveal opacity-0", orbitron.className)}>
+        <h1 className="text-4xl font-bold tracking-[0.3em] text-transparent animate-boot-text-fill bg-clip-text bg-gradient-to-r from-accent to-primary"
+            style={{ textShadow: '0 0 15px hsl(var(--primary)/0.7)' }}>
+          JARVIS
+        </h1>
+        <div className="absolute top-0 left-[-10%] h-full w-[120%] animate-boot-text-scanline bg-gradient-to-r from-transparent via-accent/70 to-transparent" />
       </div>
 
       {/* System Status Text */}
-      <div className="animate-fade-in" style={{animationDelay: '4s'}}>
-        {showSystemText && <SystemText lines={systemCheckLines} />}
+      <div className="z-10 animate-boot-log-appear opacity-0">
+        <SystemLog lines={systemCheckLines} startDelay={7000} />
       </div>
+
+      {/* Final Fadeout Overlay */}
+      <div className="absolute inset-0 z-30 bg-background animate-boot-fade-out opacity-0" style={{ animationDelay: `${(totalBootTime - 500) / 1000}s` }} />
     </div>
   );
 };
