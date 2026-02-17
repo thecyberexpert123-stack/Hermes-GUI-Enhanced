@@ -57,7 +57,7 @@ const StartupAnimation = () => {
     '[4.012] GLOBAL COMMS... ONLINE',
     '[5.218] UI RENDERER... INITIALIZED',
     '[6.988] ALL SYSTEMS NOMINAL.',
-    '[7.500] WELCOME.',
+    '[7.500] WELCOME, SIR.',
   ];
 
   const totalBootTime = 10000; // 10 seconds
@@ -99,7 +99,8 @@ const StartupAnimation = () => {
                 <stop offset="0%" stopColor="hsl(var(--accent))" />
                 <stop offset="100%" stopColor="hsl(var(--primary))" />
             </radialGradient>
-            {/* Streaking particle effect */}
+            
+            {/* Streaking particle effect for convergence */}
             <g id="particle-stream">
               {Array.from({length: 50}).map((_, i) => (
                 <circle
@@ -115,6 +116,10 @@ const StartupAnimation = () => {
                   />
               ))}
             </g>
+
+            {/* Electric bolt effect */}
+            <path id="electric-bolt" d="M0,0 l10,5 -10,5 15,7 -12,8 10,6" stroke="hsl(var(--accent))" strokeWidth="0.75" fill="none" />
+
           </defs>
           
           {/* All animated SVG elements */}
@@ -124,14 +129,16 @@ const StartupAnimation = () => {
             <g className="animate-boot-phase-1-in opacity-0">
                 {/* Energy feed lines - more complex paths */}
                 {[0, 45, 90, 135, 180, 225, 270, 315].map(angle => (
-                    <path key={`feed-${angle}`}
-                        transform={`rotate(${angle} 200 200)`}
-                        d="M 200 0 L 200 80 M 160 40 L 200 80 L 240 40"
-                        strokeWidth="0.5"
-                        className="animate-boot-path-draw"
-                        stroke="hsl(var(--accent)/0.5)"
-                        style={{ strokeDasharray: 201, strokeDashoffset: 201, animationDelay: '0.5s' }}
-                    />
+                    <g key={`feed-group-${angle}`} transform={`rotate(${angle} 200 200)`}>
+                      <path 
+                          d="M 200 0 L 200 80"
+                          strokeWidth="0.5"
+                          className="animate-boot-path-draw"
+                          stroke="hsl(var(--accent)/0.5)"
+                          style={{ strokeDasharray: 80, strokeDashoffset: 80, animationDelay: '0.5s' }}
+                      />
+                      <use href="#electric-bolt" transform="translate(200 30) scale(1.5)" className="animate-electric-flow" style={{ animationDelay: '1s' }} />
+                    </g>
                 ))}
                 {/* Outer targeting circles */}
                 <circle cx="200" cy="200" r="190" strokeWidth="0.5" className="animate-boot-path-draw" style={{ strokeDasharray: 1194, strokeDashoffset: 1194 }} />
@@ -143,11 +150,15 @@ const StartupAnimation = () => {
                 <path d="M200 50 L329.9 125 L329.9 275 L200 350 L70.1 275 L70.1 125 Z" strokeWidth="2.5" 
                       className="animate-boot-path-draw"
                       style={{ strokeDasharray: 780, strokeDashoffset: 780, animationDelay: '1.5s', animationDuration: '2s' }}/>
+                {/* Inner Hexagon */}
+                <path d="M200 80 L295.26 140 L295.26 260 L200 320 L104.74 260 L104.74 140 Z" strokeWidth="1" 
+                      className="animate-boot-path-draw"
+                      style={{ strokeDasharray: 624, strokeDashoffset: 624, animationDelay: '2s', animationDuration: '2s' }}/>
                 {/* Hexagon inner connections */}
                 {[0, 1, 2, 3, 4, 5].map(i => (
                     <path key={`hex-connect-${i}`}
                         transform={`rotate(${i * 60} 200 200)`}
-                        d="M 200 200 L 200 50"
+                        d="M 200 80 L 200 50 M 200 80 L 200 200"
                         strokeWidth="0.75"
                         className="animate-boot-path-draw"
                         style={{ strokeDasharray: 150, strokeDashoffset: 150, animationDelay: '2.5s' }}
@@ -155,10 +166,12 @@ const StartupAnimation = () => {
                 ))}
             </g>
 
-            {/* Phase 3: Spinning Inner Rings & Particle Stream */}
-            <g className="animate-boot-phase-3-in opacity-0">
-                <circle cx="200" cy="200" r="100" strokeWidth="2" className="animate-boot-path-draw animate-[spin_10s_linear_infinite]" style={{ strokeDasharray: 628, strokeDashoffset: 628, animationDelay: '3.5s' }}/>
-                <circle cx="200" cy="200" r="80" strokeWidth="1.5" strokeDasharray="10 10" className="animate-boot-path-draw animate-[spin_8s_linear_infinite_reverse]" style={{ strokeDasharray: 502, strokeDashoffset: 502, animationDelay: '4s' }}/>
+            {/* Phase 3: Spinning Gyroscope Rings */}
+            <g className="animate-boot-phase-3-in opacity-0 [transform-style:preserve-3d] [transform:perspective(500px)]">
+                <circle cx="200" cy="200" r="100" strokeWidth="2" className="animate-boot-path-draw animate-gyro-1" style={{ strokeDasharray: 628, strokeDashoffset: 628, animationDelay: '3.5s' }}/>
+                <circle cx="200" cy="200" r="80" strokeWidth="1.5" strokeDasharray="10 10" className="animate-boot-path-draw animate-gyro-2" style={{ strokeDasharray: 502, strokeDashoffset: 502, animationDelay: '4s' }}/>
+                <circle cx="200" cy="200" r="120" strokeWidth="1" strokeDasharray="2 8" className="animate-boot-path-draw animate-gyro-3" style={{ strokeDasharray: 754, strokeDashoffset: 754, animationDelay: '3.8s' }}/>
+                
                 {/* Particle stream effect */}
                 <use href="#particle-stream" />
             </g>
@@ -168,8 +181,26 @@ const StartupAnimation = () => {
                 <circle cx="200" cy="200" r="40" fill="url(#coreGradient)" className="animate-boot-core-ignite" style={{ transformOrigin: 'center' }} />
                 <circle cx="200" cy="200" r="50" strokeWidth="1.5" className="animate-boot-path-draw animate-boot-core-pulse" style={{ strokeDasharray: 314, strokeDashoffset: 314, animationDelay: '5s' }}/>
                 <circle cx="200" cy="200" r="55" strokeWidth="0.75" className="animate-boot-path-draw animate-boot-core-pulse" style={{ strokeDasharray: 345, strokeDashoffset: 345, animationDelay: '5.2s', animationDirection: 'reverse' }}/>
-                {/* Shockwave effect */}
+                
+                {/* Shockwave effects */}
                 <circle cx="200" cy="200" r="0" strokeWidth="2" className="animate-boot-shockwave" stroke="hsl(var(--accent))" style={{animationDelay: '5.1s'}} />
+                <circle cx="200" cy="200" r="0" strokeWidth="2" className="animate-boot-shockwave" stroke="hsl(var(--primary))" style={{animationDelay: '5.3s', animationDuration: '1.5s'}} />
+                
+                {/* Outward particle burst */}
+                 {Array.from({length: 40}).map((_, i) => (
+                    <circle
+                    key={`burst-${i}`}
+                    cx="200" cy="200"
+                    r="1.5"
+                    fill="hsl(var(--accent))"
+                    className="animate-particle-burst"
+                    style={{
+                        '--angle': `${i * 9}deg`,
+                        '--delay': `5.2s`,
+                    } as React.CSSProperties}
+                    />
+                ))}
+
             </g>
           </g>
         </svg>
@@ -186,7 +217,7 @@ const StartupAnimation = () => {
 
       {/* System Status Text */}
       <div className="z-10 animate-boot-log-appear opacity-0">
-        <SystemLog lines={systemCheckLines} startDelay={7000} />
+        <SystemLog lines={systemCheckLines} startDelay={7500} />
       </div>
 
       {/* Final Fadeout Overlay */}

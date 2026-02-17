@@ -252,6 +252,25 @@ export default {
         'boot-shockwave': {
           'from': { r: '0', 'stroke-opacity': '1' },
           'to': { r: '100px', 'stroke-opacity': '0' }
+        },
+        'electric-flow': {
+          'to': { 'stroke-dashoffset': '0' }
+        },
+        'particle-burst': {
+          'from': { transform: 'rotate(var(--angle)) translateX(0) scale(1)', opacity: '1'},
+          'to': { transform: 'rotate(var(--angle)) translateX(150px) scale(0)', opacity: '0'}
+        },
+        'gyro-1': {
+          from: { transform: 'rotateX(70deg) rotateZ(0deg)'},
+          to: { transform: 'rotateX(70deg) rotateZ(360deg)'}
+        },
+        'gyro-2': {
+          from: { transform: 'rotateY(60deg) rotateZ(0deg)'},
+          to: { transform: 'rotateY(60deg) rotateZ(-360deg)'}
+        },
+        'gyro-3': {
+          from: { transform: 'rotateX(-50deg) rotateY(20deg) rotateZ(0deg)'},
+          to: { transform: 'rotateX(-50deg) rotateY(20deg) rotateZ(360deg)'}
         }
       },
       animation: {
@@ -286,15 +305,20 @@ export default {
         'boot-path-draw': 'boot-path-draw 1.5s ease-out forwards',
         'boot-core-ignite': 'boot-core-ignite 1s 5s ease-in-out forwards',
         'boot-core-pulse': 'boot-core-pulse 3s infinite ease-in-out 5.5s',
-        'boot-text-reveal': 'boot-text-reveal 1s 6s ease-out forwards',
-        'boot-text-fill': 'boot-text-fill 2s 6.5s ease-in-out forwards',
-        'boot-text-scanline': 'boot-text-scanline 1s 6.8s ease-in-out',
-        'boot-log-appear': 'boot-log-appear 1s 7s forwards',
+        'boot-text-reveal': 'boot-text-reveal 1s 6.5s ease-out forwards',
+        'boot-text-fill': 'boot-text-fill 2s 7s ease-in-out forwards',
+        'boot-text-scanline': 'boot-text-scanline 1s 7.3s ease-in-out',
+        'boot-log-appear': 'boot-log-appear 1s 7.5s forwards',
         'log-scroll': 'log-scroll 10s linear',
         'log-line-flicker': 'log-line-flicker 2s infinite',
         'boot-fade-out': 'boot-fade-out 0.5s linear forwards',
         'particle-stream': 'particle-stream var(--duration) ease-out var(--delay) forwards',
-        'boot-shockwave': 'boot-shockwave 1s ease-out forwards'
+        'boot-shockwave': 'boot-shockwave 1s ease-out forwards',
+        'electric-flow': 'electric-flow 1s ease-in forwards',
+        'particle-burst': 'particle-burst 1.5s ease-out forwards var(--delay, 0s)',
+        'gyro-1': 'gyro-1 10s linear infinite',
+        'gyro-2': 'gyro-2 12s linear infinite',
+        'gyro-3': 'gyro-3 15s linear infinite',
       },
     },
   },
