@@ -49,8 +49,8 @@ const StartupAnimation = () => {
     // Generate styles for particles on the client side to avoid hydration mismatch
     const newParticleStyles = Array.from({ length: 50 }).map(() => ({
       '--angle': `${Math.random() * 360}deg`,
-      '--delay': `${Math.random() * 3 + 4}s`, // Delay these to sync with Phase 3
-      '--duration': `${Math.random() * 2 + 1}s`,
+      '--delay': `${Math.random() * 2 + 2.5}s`, // Delay these to sync with Phase 3
+      '--duration': `${Math.random() * 2 + 2}s`,
     } as React.CSSProperties));
     setParticleStyles(newParticleStyles);
   }, []);
@@ -123,7 +123,7 @@ const StartupAnimation = () => {
               ))}
             </g>
             
-            <path id="electric-bolt" d="M0,0 l10,5 -10,5 15,7 -12,8 10,6" stroke="hsl(var(--accent))" strokeWidth="0.75" fill="none" />
+            <path id="electric-bolt" d="M0,0 l10,5 -10,5 15,7 -12,8 10,6" stroke="hsl(var(--accent))" strokeWidth="1.5" fill="none" />
 
           </defs>
           
@@ -134,43 +134,44 @@ const StartupAnimation = () => {
                     <g key={`feed-group-${angle}`} transform={`rotate(${angle} 200 200)`}>
                       <path 
                           d="M 200 0 L 200 80"
-                          strokeWidth="0.5"
+                          strokeWidth="1"
                           className="animate-boot-path-draw"
                           stroke="hsl(var(--accent)/0.5)"
                           style={{ strokeDasharray: 80, strokeDashoffset: 80, animationDelay: '0.5s' }}
                       />
-                      <use href="#electric-bolt" transform="translate(200 30) scale(1.5)" className="animate-electric-flow" style={{ animationDelay: '1s', '--length': 60 } as React.CSSProperties} />
+                      <use href="#electric-bolt" transform="translate(200 30) scale(1.5)" className="animate-electric-flow" style={{ animationDelay: '0.5s', '--length': 60 } as React.CSSProperties} />
                     </g>
                 ))}
-                <circle cx="200" cy="200" r="190" strokeWidth="0.5" className="animate-boot-path-draw" style={{ strokeDasharray: 1194, strokeDashoffset: 1194 }} />
-                <circle cx="200" cy="200" r="180" strokeWidth="0.75" strokeDasharray="5 15" className="animate-boot-path-draw animate-[spin_40s_linear_infinite]" style={{ strokeDasharray: 1131, strokeDashoffset: 1131, animationDelay: '0.2s' }} />
+                <circle cx="200" cy="200" r="190" strokeWidth="0.5" className="animate-boot-path-draw" style={{ strokeDasharray: 1194, strokeDashoffset: 1194, animationDuration: '2s' }} />
+                <circle cx="200" cy="200" r="180" strokeWidth="0.75" strokeDasharray="5 15" className="animate-boot-path-draw animate-[spin_40s_linear_infinite]" style={{ strokeDasharray: 1131, strokeDashoffset: 1131, animationDelay: '0.2s', animationDuration: '2s' }} />
             </g>
 
             <g className="animate-boot-phase-2-in opacity-0">
-                {/* Corrected Hexagon Paths */}
-                <path d="M200 50 L329.9 125 L329.9 275 L200 350 L70.1 275 L70.1 125 Z" strokeWidth="3" 
+                <path d="M200 50 L329.9 125 L329.9 275 L200 350 L70.1 275 L70.1 125 Z" strokeWidth="4" 
                       className="animate-boot-path-draw"
-                      style={{ strokeDasharray: 900, strokeDashoffset: 900, animationDelay: '1.5s', animationDuration: '2s' }}/>
-                <path d="M200 80 L295.26 140 L295.26 260 L200 320 L104.74 260 L104.74 140 Z" strokeWidth="1.5" 
+                      style={{ strokeDasharray: 900, strokeDashoffset: 900, animationDelay: '1s', animationDuration: '2s' }}/>
+                <path d="M200 80 L295.26 140 L295.26 260 L200 320 L104.74 260 L104.74 140 Z" strokeWidth="2" 
                       className="animate-boot-path-draw"
-                      style={{ strokeDasharray: 720, strokeDashoffset: 720, animationDelay: '2s', animationDuration: '2s' }}/>
+                      style={{ strokeDasharray: 720, strokeDashoffset: 720, animationDelay: '1.5s', animationDuration: '2.5s' }}/>
                 {[0, 1, 2, 3, 4, 5].map(i => (
                     <path key={`hex-connect-${i}`}
                         transform={`rotate(${i * 60} 200 200)`}
                         d="M 200 80 L 200 50 M 200 80 L 200 200"
-                        strokeWidth="0.75"
+                        strokeWidth="1"
                         className="animate-boot-path-draw"
-                        style={{ strokeDasharray: 150, strokeDashoffset: 150, animationDelay: '2.5s' }}
+                        style={{ strokeDasharray: 150, strokeDashoffset: 150, animationDelay: '2s', animationDuration: '2s' }}
                     />
                 ))}
             </g>
 
             <g className="animate-boot-phase-3-in opacity-0 [transform-style:preserve-3d] [transform:perspective(500px)]">
-                <circle cx="200" cy="200" r="100" strokeWidth="2" className="animate-boot-path-draw animate-gyro-1" style={{ strokeDasharray: 628, strokeDashoffset: 628, animationDelay: '3.5s' }}/>
-                <circle cx="200" cy="200" r="80" strokeWidth="1.5" strokeDasharray="10 10" className="animate-boot-path-draw animate-gyro-2" style={{ strokeDasharray: 502, strokeDashoffset: 502, animationDelay: '4s' }}/>
-                <circle cx="200" cy="200" r="120" strokeWidth="1" strokeDasharray="2 8" className="animate-boot-path-draw animate-gyro-3" style={{ strokeDasharray: 754, strokeDashoffset: 754, animationDelay: '3.8s' }}/>
+                <circle cx="200" cy="200" r="100" strokeWidth="2" className="animate-boot-path-draw animate-gyro-1" style={{ strokeDasharray: 628, strokeDashoffset: 628, animationDelay: '2.5s' }}/>
+                <circle cx="200" cy="200" r="80" strokeWidth="1.5" strokeDasharray="10 10" className="animate-boot-path-draw animate-gyro-2" style={{ strokeDasharray: 502, strokeDashoffset: 502, animationDelay: '2.8s' }}/>
+                <circle cx="200" cy="200" r="120" strokeWidth="1" strokeDasharray="2 8" className="animate-boot-path-draw animate-gyro-3" style={{ strokeDasharray: 754, strokeDashoffset: 754, animationDelay: '3s' }}/>
                 
-                <use href="#particle-stream" />
+                <g transform="translate(200 200)">
+                  <use href="#particle-stream" />
+                </g>
             </g>
 
             <g className="animate-boot-phase-4-in opacity-0">
@@ -178,7 +179,6 @@ const StartupAnimation = () => {
                 <circle cx="200" cy="200" r="50" strokeWidth="1.5" className="animate-boot-path-draw animate-boot-core-pulse" style={{ strokeDasharray: 314, strokeDashoffset: 314, animationDelay: '5s' }}/>
                 <circle cx="200" cy="200" r="55" strokeWidth="0.75" className="animate-boot-path-draw animate-boot-core-pulse" style={{ strokeDasharray: 345, strokeDashoffset: 345, animationDelay: '5.2s', animationDirection: 'reverse' }}/>
                 
-                {/* Shockwave effects */}
                 <circle cx="200" cy="200" r="0" strokeWidth="3" className="animate-boot-shockwave-1" stroke="hsl(var(--accent))" />
                 <circle cx="200" cy="200" r="0" strokeWidth="2" className="animate-boot-shockwave-2" stroke="hsl(var(--primary))" />
                 
@@ -191,7 +191,7 @@ const StartupAnimation = () => {
                     className="animate-particle-burst"
                     style={{
                         '--angle': `${i * 9}deg`,
-                        '--delay': `5.8s`,
+                        '--delay': `5.5s`,
                     } as React.CSSProperties}
                     />
                 ))}
@@ -210,7 +210,7 @@ const StartupAnimation = () => {
       </div>
 
       <div className="z-10 animate-boot-log-appear opacity-0">
-        <SystemLog lines={systemCheckLines} startDelay={6500} />
+        <SystemLog lines={systemCheckLines} startDelay={7000} />
       </div>
 
       <div className="absolute inset-0 z-30 bg-background animate-boot-fade-out opacity-0" style={{ animationDelay: `${(totalBootTime - 500) / 1000}s` }} />
