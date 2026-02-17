@@ -222,6 +222,44 @@ export default {
             '0%, 100%': { opacity: '0' },
             '50%': { opacity: '0.7' },
         },
+        'boot-scan-vertical': {
+            '0%': { transform: 'translateY(-100%)', opacity: '0' },
+            '10%, 90%': { opacity: '0.1' },
+            '100%': { transform: 'translateY(100%)', opacity: '0' },
+        },
+        'boot-grid-appear': {
+            'from': { opacity: '0' },
+            'to': { opacity: '1' },
+        },
+        'boot-core-pulse': {
+            '0%, 100%': { transform: 'scale(1)', boxShadow: '0 0 40px 5px hsl(var(--primary) / 0.5), 0 0 10px 2px hsl(var(--accent))' },
+            '50%': { transform: 'scale(1.2)', boxShadow: '0 0 80px 15px hsl(var(--primary) / 0.8), 0 0 25px 5px hsl(var(--accent))' },
+        },
+        'boot-text-flicker': {
+            '0%': { opacity: '1' },
+            '25%': { opacity: '0.3' },
+            '50%': { opacity: '1' },
+            '75%': { opacity: '0.6' },
+            '100%': { opacity: '1' },
+        },
+        'boot-line-converge': {
+            'from': {
+                transform: 'rotate(var(--angle)) translateX(300px) rotate(calc(-1 * var(--angle)))',
+                opacity: '0',
+            },
+            '40%': { opacity: '1' },
+            'to': {
+                transform: 'rotate(var(--angle)) translateX(60px) rotate(calc(-1 * var(--angle)))',
+                opacity: '1',
+            },
+        },
+        'boot-final-glow': {
+            'from': { opacity: '0', transform: 'scale(0.8)' },
+            'to': { opacity: '1', transform: 'scale(1)' },
+        },
+        'boot-path-trace': {
+          to: { strokeDashoffset: '0' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
@@ -250,6 +288,13 @@ export default {
         'circuit-pulse': 'circuit-pulse 5s ease-in-out infinite',
         'boost-flash': 'boost-flash 0.5s ease-out forwards',
         'vignette-pulse': 'vignette-pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) forwards',
+        'boot-scan-vertical': 'boot-scan-vertical 3s ease-in-out forwards',
+        'boot-grid-appear': 'boot-grid-appear 2s 1s forwards cubic-bezier(0.215, 0.610, 0.355, 1.000)',
+        'boot-core-pulse': 'boot-core-pulse 3s 1.5s infinite ease-in-out',
+        'boot-path-trace': 'boot-path-trace 1.5s cubic-bezier(0.215, 0.610, 0.355, 1.000) forwards',
+        'boot-text-flicker': 'boot-text-flicker 0.2s linear 3',
+        'boot-line-converge': 'boot-line-converge 1s var(--delay) cubic-bezier(0.4, 0, 0.2, 1) forwards',
+        'boot-final-glow': 'boot-final-glow 2s cubic-bezier(0.215, 0.610, 0.355, 1.000) forwards',
       },
     },
   },

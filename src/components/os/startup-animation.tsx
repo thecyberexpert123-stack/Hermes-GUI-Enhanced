@@ -6,186 +6,154 @@ import { useState, useEffect } from 'react';
 
 const orbitron = Orbitron({ subsets: ['latin'] });
 
+// Helper component for the background grid
+const HexagonGrid = () => (
+    <div className="absolute inset-[-100%] animate-boot-grid-appear opacity-0 [animation-delay:1s]"
+        style={{
+            backgroundImage: `
+                linear-gradient(150deg, hsl(var(--primary)/0.05) 1px, transparent 1px),
+                linear-gradient(30deg, hsl(var(--primary)/0.05) 1px, transparent 1px),
+                linear-gradient(90deg, hsl(var(--primary)/0.05) 1px, transparent 1px)
+            `,
+            backgroundSize: '3rem 5.2rem',
+            backgroundPosition: '0 0, 0 0, 0 0',
+        }}
+    />
+);
+
+// Helper for the final system status text
+const SystemText = ({ lines }: { lines: string[] }) => {
+    const [currentLine, setCurrentLine] = useState(0);
+
+    useEffect(() => {
+        if (currentLine >= lines.length) return;
+
+        const timer = setTimeout(() => {
+            setCurrentLine(currentLine + 1);
+        }, 80);
+
+        return () => clearTimeout(timer);
+    }, [currentLine, lines.length]);
+
+    return (
+        <div className="relative h-24 w-64 text-xs font-code tracking-widest text-accent">
+            {lines.slice(0, currentLine).map((line, i) => (
+                <p key={i} className="animate-boot-text-flicker">{line}</p>
+            ))}
+        </div>
+    );
+};
+
+
+// Main component
 const StartupAnimation = () => {
   const [particles, setParticles] = useState<React.CSSProperties[]>([]);
-  const particleCount = 150; // Adjusted particle count
+  const [showSystemText, setShowSystemText] = useState(false);
+  const particleCount = 60;
+  const jarvisName = 'JARVIS';
+  
+  const systemCheckLines = [
+    '> Bootstrapping NEON OS...',
+    '> Kernel loaded.',
+    '> Initializing J.A.R.V.I.S. Core...',
+    '> AI matrices aligned.',
+    '> Verifying quantum entanglement...',
+    '> All systems nominal.',
+  ];
 
   useEffect(() => {
-    // This logic should remain on the client to avoid hydration errors.
     if (typeof window !== 'undefined') {
-      const newParticles = Array.from({ length: particleCount }).map((_, i) => {
-        const angle = (i / particleCount) * Math.PI * 2;
-        const radius = 65 + Math.random() * 15; // End near the core rings
-        return {
-          '--angle': `${angle}rad`,
-          '--radius': `${radius}px`,
-          '--delay': `${1.5 + Math.random() * 1.5}s`,
-          '--duration': `${1.5 + Math.random() * 1}s`, // Faster animation
-        } as React.CSSProperties;
-      });
+      const newParticles = Array.from({ length: particleCount }).map((_, i) => ({
+        '--angle': `${(i / particleCount) * 360}deg`,
+        '--delay': `${1.8 + Math.random() * 0.5}s`,
+      } as React.CSSProperties));
       setParticles(newParticles);
     }
+    
+    const systemTextTimer = setTimeout(() => {
+        setShowSystemText(true);
+    }, 4000);
+    
+    return () => clearTimeout(systemTextTimer);
   }, []);
 
-  const jarvisName = 'JARVIS';
-
   return (
-    <div className="flex flex-col items-center justify-center gap-8 text-primary overflow-hidden">
-      <div className="relative h-64 w-64">
-        {/* Phase 1: Background Grid */}
-        <div className="absolute inset-[-100%] animate-fade-in [animation-duration:1.5s] [background-image:radial-gradient(hsl(var(--primary)/0.1)_1px,transparent_1px)] [background-size:1.5rem_1.5rem]" />
-
-        {/* Phase 2: Core Assembly */}
-        <div className="absolute inset-0 animate-fade-in [animation-delay:1s]">
-          <div className="h-full w-full animate-[spin_20s_linear_infinite] rounded-full border-2 border-dashed border-primary/10" />
-        </div>
-        <div className="absolute inset-[10%] h-[80%] w-[80%] animate-[spin_15s_linear_infinite_reverse] rounded-full border border-dotted border-accent/20" />
+    <div className="flex h-screen w-screen flex-col items-center justify-center gap-8 overflow-hidden bg-background text-primary">
         
+      {/* Background Effects */}
+      <HexagonGrid />
+      <div className="absolute top-0 left-0 h-full w-1/2 animate-boot-scan-vertical opacity-0 [animation-delay:0.5s]">
+        <div className="h-full w-full bg-gradient-to-r from-primary/5 via-primary/10 to-transparent" />
+      </div>
+       <div className="absolute top-0 right-0 h-full w-1/2 animate-boot-scan-vertical opacity-0 [animation-delay:0.7s]">
+        <div className="h-full w-full bg-gradient-to-l from-primary/5 via-primary/10 to-transparent" />
+      </div>
+
+      {/* Main Animation Core */}
+      <div className="relative h-80 w-80">
+        
+        {/* Converging Energy Lines */}
+        <div className="absolute inset-0">
+          {particles.map((style, i) => (
+            <div key={i} className="absolute top-1/2 left-1/2 h-0.5 w-20 origin-left bg-gradient-to-l from-accent/0 to-accent animate-boot-line-converge opacity-0" style={style} />
+          ))}
+        </div>
+
+        {/* Central Glowing Core */}
+        <div className="absolute inset-[45%] rounded-full animate-boot-core-pulse opacity-0 [animation-delay:1.5s]" />
+
         <svg
           viewBox="0 0 200 200"
-          className="absolute inset-0 h-full w-full -rotate-90"
+          className="absolute inset-0 h-full w-full"
           style={{ '--glow-color': 'hsl(var(--primary))' } as React.CSSProperties}
         >
           <defs>
-            <filter id="glow">
-              <feGaussianBlur stdDeviation="3.5" result="coloredBlur" />
+            <filter id="ultimateGlow">
+              <feGaussianBlur stdDeviation="2.5" result="coloredBlur" />
               <feMerge>
                 <feMergeNode in="coloredBlur" />
                 <feMergeNode in="SourceGraphic" />
               </feMerge>
             </filter>
+            <mask id="ringMask">
+                <rect width="200" height="200" fill="white" />
+                <circle cx="100" cy="100" r="45" fill="black" />
+            </mask>
           </defs>
-          <g filter="url(#glow)" className="origin-center">
-            {/* Core Pulse */}
-            <circle cx="100" cy="100" r="5" className="fill-current text-primary animate-pulse-slow" style={{animationDelay: '0.5s'}} />
+          
+          {/* Animated Glyphs */}
+          <g filter="url(#ultimateGlow)" className="fill-none stroke-current opacity-0 animate-boot-final-glow [animation-delay:2s]">
+            {/* Outer Rings */}
+            <circle cx="100" cy="100" r="95" strokeWidth="0.5" className="animate-boot-path-trace" style={{ animationDelay: '2.1s', strokeDasharray: 600, strokeDashoffset: 600 }} />
+            <circle cx="100" cy="100" r="90" strokeWidth="1" className="animate-boot-path-trace" style={{ animationDelay: '2.2s', strokeDasharray: 565, strokeDashoffset: 565, strokeDasharray: '10 10' }} />
             
-            {/* Incoming Electric Streaks */}
-            {particles.map((style, i) => (
-              <line
-                key={i}
-                x1="-4"
-                y1="0"
-                x2="4"
-                y2="0"
-                strokeWidth="1.5"
-                className="stroke-current text-accent opacity-0 animate-particle-line-in"
-                style={style}
-              />
+            {/* Main Hexagon Structure */}
+            {[0, 60, 120, 180, 240, 300].map(angle => (
+                 <path key={`hex-${angle}`}
+                    transform={`rotate(${angle} 100 100)`}
+                    d="M 100 10 L 100 30 M 100 10 L 108.66 15 M 100 10 L 91.34 15"
+                    strokeWidth="1"
+                    className="animate-boot-path-trace"
+                    style={{ animationDelay: '2.4s', strokeDasharray: 40, strokeDashoffset: 40 }}
+                 />
             ))}
-            
-            {/* Circuitry paths */}
-            <g strokeWidth="0.5" className="fill-none stroke-primary/50 opacity-70">
-                <path
-                    className="animate-trace-in"
-                    style={{ '--delay': '1.5s', strokeDasharray: 80, strokeDashoffset: 80 } as React.CSSProperties}
-                    d="M 0 100 h 40 v -20 h 20"
-                />
-                <path
-                    className="animate-trace-in"
-                    style={{ '--delay': '1.6s', strokeDasharray: 80, strokeDashoffset: 80 } as React.CSSProperties}
-                    d="M 200 100 h -40 v 20 h -20"
-                />
-                <path
-                    className="animate-trace-in"
-                    style={{ '--delay': '1.7s', strokeDasharray: 80, strokeDashoffset: 80 } as React.CSSProperties}
-                    d="M 100 0 v 40 h -20 v 20"
-                />
-                <path
-                    className="animate-trace-in"
-                    style={{ '--delay': '1.8s', strokeDasharray: 80, strokeDashoffset: 80 } as React.CSSProperties}
-                    d="M 100 200 v -40 h 20 v -20"
-                />
-                <path
-                    className="animate-trace-in"
-                    style={{ '--delay': '1.9s', strokeDasharray: 85, strokeDashoffset: 85 } as React.CSSProperties}
-                    d="M 20 20 L 60 60"
-                />
-                 <path
-                    className="animate-trace-in"
-                    style={{ '--delay': '2.0s', strokeDasharray: 85, strokeDashoffset: 85 } as React.CSSProperties}
-                    d="M 180 180 L 140 140"
-                />
-                 <path
-                    className="animate-trace-in"
-                    style={{ '--delay': '2.1s', strokeDasharray: 85, strokeDashoffset: 85 } as React.CSSProperties}
-                    d="M 20 180 L 60 140"
-                />
-                 <path
-                    className="animate-trace-in"
-                    style={{ '--delay': '2.2s', strokeDasharray: 85, strokeDashoffset: 85 } as React.CSSProperties}
-                    d="M 180 20 L 140 60"
-                />
+            <path d="M100 30 L143.3 55 L143.3 105 L100 130 L56.7 105 L56.7 55 Z" strokeWidth="1.5" className="animate-boot-path-trace" style={{ animationDelay: '2.5s', strokeDasharray: 347, strokeDashoffset: 347 }}/>
+
+            {/* Inner Details */}
+            <g mask="url(#ringMask)">
+                <path d="M100 50 V 150 M50 100 H 150" strokeWidth="0.5" strokeOpacity="0.5" className="animate-boot-path-trace" style={{ animationDelay: '2.8s', strokeDasharray: 200, strokeDashoffset: 200 }} />
+                <path d="M 71.7 71.7 L 128.3 128.3 M 71.7 128.3 L 128.3 71.7" strokeWidth="0.5" strokeOpacity="0.5" className="animate-boot-path-trace" style={{ animationDelay: '2.9s', strokeDasharray: 160, strokeDashoffset: 160 }}/>
             </g>
 
-            {/* Logo Rings */}
-            <g className="fill-none stroke-current">
-                <circle
-                  className="animate-trace-in"
-                  style={{ '--delay': '1s' } as React.CSSProperties}
-                  cx="100"
-                  cy="100"
-                  r="60"
-                  strokeWidth="2"
-                  strokeDasharray="377"
-                  strokeDashoffset="377"
-                />
-                <circle
-                  className="animate-trace-in"
-                  style={{ '--delay': '1.2s' } as React.CSSProperties}
-                  cx="100"
-                  cy="100"
-                  r="70"
-                  strokeWidth="1"
-                  strokeDasharray="440"
-                  strokeDashoffset="440"
-                />
-                <circle
-                  className="animate-trace-in"
-                  style={{ '--delay': '1.4s' } as React.CSSProperties}
-                  cx="100"
-                  cy="100"
-                  r="80"
-                  strokeWidth="2"
-                  strokeDasharray="503"
-                  strokeDashoffset="503"
-                />
-                {/* New animated arcs */}
-                 <path
-                  className="animate-trace-in"
-                  style={{ '--delay': '2.2s', strokeDasharray: 90, strokeDashoffset: 90 } as React.CSSProperties}
-                  d="M 20 100 A 80 80 0 0 1 100 20"
-                  strokeWidth="1"
-                />
-                <path
-                  className="animate-trace-in"
-                  style={{ '--delay': '2.3s', strokeDasharray: 90, strokeDashoffset: 90 } as React.CSSProperties}
-                  d="M 100 180 A 80 80 0 0 1 20 100"
-                  strokeWidth="1"
-                  transform="rotate(180 100 100)"
-                />
+             {/* Spinning Rings inside Hexagon */}
+            <circle cx="100" cy="100" r="60" strokeWidth="1" className="animate-boot-path-trace animate-[spin_10s_linear_infinite]" style={{ animationDelay: '2.6s', strokeDasharray: 377, strokeDashoffset: 377 }} />
+            <circle cx="100" cy="100" r="75" strokeWidth="0.5" className="animate-boot-path-trace animate-[spin_15s_linear_infinite_reverse]" style={{ animationDelay: '2.7s', strokeDasharray: 471, strokeDashoffset: 471 }} />
 
-                {/* Inner details */}
-                <path
-                  className="animate-trace-in"
-                  style={{ '--delay': '1.8s' } as React.CSSProperties}
-                  d="M100 50 V 150 M50 100 H 150"
-                  strokeWidth="1"
-                  strokeDasharray="200"
-                  strokeDashoffset="200"
-                />
-                 <path
-                  className="animate-trace-in"
-                  style={{ '--delay': '2s' } as React.CSSProperties}
-                  d="M 71.7 71.7 L 128.3 128.3 M 71.7 128.3 L 128.3 71.7"
-                  strokeWidth="1"
-                  strokeDasharray="160"
-                  strokeDashoffset="160"
-                />
-            </g>
           </g>
         </svg>
       </div>
-      {/* Phase 3: Text Boot */}
+
+      {/* JARVIS Text Reveal */}
       <div className="relative flex h-12 items-center justify-center overflow-hidden">
         <div className="flex">
           {jarvisName.split('').map((letter, i) => (
@@ -195,18 +163,19 @@ const StartupAnimation = () => {
                 'relative text-4xl font-bold tracking-[0.2em] opacity-0 animate-jarvis-letter-in',
                 orbitron.className
               )}
-              style={{ animationDelay: `${2.5 + i * 0.1}s` }}
+              style={{ animationDelay: `${3.2 + i * 0.1}s` }}
             >
               {letter}
             </span>
           ))}
         </div>
-        <div className="absolute top-0 left-0 h-full w-full animate-scanline bg-gradient-to-b from-transparent via-primary/20 to-transparent" style={{ animationDelay: '3.5s'}}/>
+        <div className="absolute top-0 left-0 h-full w-full animate-scanline bg-gradient-to-b from-transparent via-primary/20 to-transparent" style={{ animationDelay: '3.8s'}}/>
       </div>
-      {/* Phase 4: System Online */}
-      <p className="tracking-widest text-accent opacity-0 animate-fade-in [animation-delay:3.5s]">
-        J.A.R.V.I.S. INITIALIZING...
-      </p>
+
+      {/* System Status Text */}
+      <div className="animate-fade-in" style={{animationDelay: '4s'}}>
+        {showSystemText && <SystemText lines={systemCheckLines} />}
+      </div>
     </div>
   );
 };
