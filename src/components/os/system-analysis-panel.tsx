@@ -13,7 +13,7 @@ const SystemAnalysisPanel = ({ analysis, isAnalyzing }: SystemAnalysisPanelProps
   const title = analysis?.hasCriticalIssues ? 'CRITICAL ALERTS' : 'SYSTEM STATUS: NOMINAL';
 
   return (
-    <JarvisPanel title="J.A.R.V.I.S. AI Analysis" className="w-[40vw] max-w-2xl">
+    <JarvisPanel title="J.A.R.V.I.S. AI Analysis" className="w-full max-w-xl">
         {isAnalyzing && !analysis && (
           <div className="flex items-center gap-2 text-accent">
             <Loader className="animate-spin" size={16} />
