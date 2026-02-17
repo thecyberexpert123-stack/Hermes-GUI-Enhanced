@@ -195,6 +195,11 @@ export default {
             '90%': { opacity: '1' },
             '100%': { transform: 'translateY(100%)', opacity: '0' },
         },
+        'boot-screen-shake': {
+          '0%, 100%': { transform: 'translateX(0)' },
+          '10%, 30%, 50%, 70%, 90%': { transform: 'translateX(-2px)' },
+          '20%, 40%, 60%, 80%': { transform: 'translateX(2px)' },
+        },
         'boot-phase-1-in': { from: { opacity: '0' }, to: { opacity: '1' } },
         'boot-phase-2-in': { from: { opacity: '0' }, to: { opacity: '1' } },
         'boot-phase-3-in': { from: { opacity: '0' }, to: { opacity: '1' } },
@@ -203,21 +208,22 @@ export default {
             to: { strokeDashoffset: '0' },
         },
         'boot-core-ignite': {
-            '0%': { transform: 'scale(0)', opacity: '0' },
-            '50%': { transform: 'scale(1)', opacity: '1' },
-            '100%': { transform: 'scale(0.9)', opacity: '0.8' },
+            '0%': { transform: 'scale(0)', opacity: '0', filter: 'brightness(1)' },
+            '50%': { transform: 'scale(1.2)', opacity: '1', filter: 'brightness(2)' },
+            '100%': { transform: 'scale(1)', opacity: '1', filter: 'brightness(1.5)' },
         },
         'boot-core-pulse': {
-            '0%, 100%': { transform: 'scale(1)', opacity: '0.5', strokeWidth: '0.5' },
-            '50%': { transform: 'scale(1.1)', opacity: '1', strokeWidth: '1.5' },
+            '0%, 100%': { transform: 'scale(1)', opacity: '0.5' },
+            '50%': { transform: 'scale(1.1)', opacity: '1' },
         },
-        'boot-text-reveal': {
-            'from': { opacity: '0', transform: 'scale(0.9)' },
-            'to': { opacity: '1', transform: 'scale(1)' },
-        },
-        'boot-text-fill': {
-            'from': { 'background-position': '-200% 0' },
-            'to': { 'background-position': '200% 0' },
+        'boot-text-glitch': {
+            '0%': { opacity: '0', transform: 'translateY(10px)' },
+            '50%': { opacity: '0', transform: 'translateY(10px)' },
+            '90%': { opacity: '1', transform: 'translateY(0)'},
+            '92%': { opacity: '1', transform: 'translateX(-2px)' },
+            '94%': { opacity: '0.5', transform: 'translateX(2px) skewX(20deg)' },
+            '96%': { opacity: '1', transform: 'translateX(0) skewX(0)' },
+            '100%': { opacity: '1' }
         },
         'boot-text-scanline': {
             'from': { transform: 'translateX(-100%)' },
@@ -249,28 +255,32 @@ export default {
             opacity: '0'
           }
         },
-        'boot-shockwave': {
-          'from': { r: '0', 'stroke-opacity': '1' },
-          'to': { r: '100px', 'stroke-opacity': '0' }
+        'boot-shockwave-1': {
+          '0%': { r: '40px', 'stroke-opacity': '1', strokeWidth: '5px' },
+          '100%': { r: '250px', 'stroke-opacity': '0', strokeWidth: '0px' }
+        },
+        'boot-shockwave-2': {
+          '0%': { r: '40px', 'stroke-opacity': '1' },
+          '100%': { r: '300px', 'stroke-opacity': '0' }
         },
         'electric-flow': {
           'to': { 'stroke-dashoffset': '0' }
         },
         'particle-burst': {
-          'from': { transform: 'rotate(var(--angle)) translateX(0) scale(1)', opacity: '1'},
-          'to': { transform: 'rotate(var(--angle)) translateX(150px) scale(0)', opacity: '0'}
+          'from': { transform: 'rotate(var(--angle)) translateX(40px) scale(1)', opacity: '1'},
+          'to': { transform: 'rotate(var(--angle)) translateX(200px) scale(0)', opacity: '0'}
         },
         'gyro-1': {
           from: { transform: 'rotateX(70deg) rotateZ(0deg)'},
-          to: { transform: 'rotateX(70deg) rotateZ(720deg)'}
+          to: { transform: 'rotateX(70deg) rotateZ(1080deg)'}
         },
         'gyro-2': {
           from: { transform: 'rotateY(60deg) rotateZ(0deg)'},
-          to: { transform: 'rotateY(60deg) rotateZ(-1080deg)'}
+          to: { transform: 'rotateY(60deg) rotateZ(-1440deg)'}
         },
         'gyro-3': {
           from: { transform: 'rotateX(-50deg) rotateY(20deg) rotateZ(0deg)'},
-          to: { transform: 'rotateX(-50deg) rotateY(20deg) rotateZ(360deg)'}
+          to: { transform: 'rotateX(-50deg) rotateY(20deg) rotateZ(720deg)'}
         }
       },
       animation: {
@@ -297,27 +307,28 @@ export default {
         'boost-flash': 'boost-flash 0.5s ease-out forwards',
         'vignette-pulse': 'vignette-pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) forwards',
         'boot-grid-in': 'boot-grid-in 1s 0s ease-out forwards',
-        'boot-scanner': 'boot-scanner 1s linear forwards',
+        'boot-scanner': 'boot-scanner 1.5s 0.2s linear forwards',
+        'boot-screen-shake': 'boot-screen-shake 0.3s 5.8s cubic-bezier(.36,.07,.19,.97) both',
         'boot-phase-1-in': 'boot-phase-1-in 0.5s 0.1s forwards',
-        'boot-phase-2-in': 'boot-phase-2-in 0.5s 1s forwards',
-        'boot-phase-3-in': 'boot-phase-3-in 0.5s 2.5s forwards',
-        'boot-phase-4-in': 'boot-phase-4-in 0.5s 3.5s forwards',
+        'boot-phase-2-in': 'boot-phase-2-in 0.5s 1.5s forwards',
+        'boot-phase-3-in': 'boot-phase-3-in 0.5s 3.5s forwards',
+        'boot-phase-4-in': 'boot-phase-4-in 0.5s 5s forwards',
         'boot-path-draw': 'boot-path-draw 1.5s ease-out forwards',
-        'boot-core-ignite': 'boot-core-ignite 1s 4s ease-in-out forwards',
-        'boot-core-pulse': 'boot-core-pulse 3s infinite ease-in-out 4.5s',
-        'boot-text-reveal': 'boot-text-reveal 1s 5s ease-out forwards',
-        'boot-text-fill': 'boot-text-fill 2s 5.5s ease-in-out forwards',
-        'boot-text-scanline': 'boot-text-scanline 1s 5.8s ease-in-out',
-        'boot-log-appear': 'boot-log-appear 0.5s 5.5s forwards',
+        'boot-core-ignite': 'boot-core-ignite 1s 5s ease-in-out forwards',
+        'boot-core-pulse': 'boot-core-pulse 2s infinite ease-in-out 5.5s',
+        'boot-text-glitch': 'boot-text-glitch 1.5s 6s forwards',
+        'boot-text-scanline': 'boot-text-scanline 1s 6.8s ease-in-out',
+        'boot-log-appear': 'boot-log-appear 0.5s 6.5s forwards',
         'log-scroll': 'log-scroll 1.5s ease-in-out forwards',
-        'boot-fade-out': 'boot-fade-out 0.5s linear forwards',
+        'boot-fade-out': 'boot-fade-out 0.5s 7.5s linear forwards',
         'particle-stream': 'particle-stream var(--duration) ease-out var(--delay) forwards',
-        'boot-shockwave': 'boot-shockwave 1s ease-out forwards',
-        'electric-flow': 'electric-flow 1s ease-in forwards',
+        'boot-shockwave-1': 'boot-shockwave-1 1s 5.8s ease-out forwards',
+        'boot-shockwave-2': 'boot-shockwave-2 1.5s 5.9s ease-out forwards',
+        'electric-flow': 'electric-flow 1s 1s ease-in forwards',
         'particle-burst': 'particle-burst 1.5s ease-out forwards var(--delay, 0s)',
-        'gyro-1': 'gyro-1 4s ease-in-out forwards',
-        'gyro-2': 'gyro-2 4s ease-in-out forwards',
-        'gyro-3': 'gyro-3 4s ease-in-out forwards',
+        'gyro-1': 'gyro-1 4s 3.5s ease-in-out forwards',
+        'gyro-2': 'gyro-2 4s 4s ease-in-out forwards',
+        'gyro-3': 'gyro-3 4s 3.8s ease-in-out forwards',
       },
     },
   },
