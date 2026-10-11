@@ -3,8 +3,8 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
 
 export const metadata: Metadata = {
-  title: 'Neon OS',
-  description: 'A futuristic HUD interface for system monitoring.',
+  title: 'HERMES // J.A.R.V.I.S. AGENT STUDIO',
+  description: 'Autonomous Intelligence, 3D Geospatial God\'s Eye & WSL2 Telemetry Matrix',
 };
 
 export default function RootLayout({

@@ -2,23 +2,58 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
-import { Orbitron } from 'next/font/google';
+import { orbitron } from '@/lib/fonts';
+import { Mic, MicOff, Radio, Zap, Sparkles } from 'lucide-react';
+import { soundFx } from '@/lib/audio-synth';
+import { useRealVoice } from '@/hooks/use-real-voice';
 
-const orbitron = Orbitron({ subsets: ['latin'] });
+interface LoopingVoiceHUDProps {
+  onSendMessage?: (queryText: string) => void;
+  isLoading?: boolean;
+}
 
-type AiStatus = 'listening' | 'thinking' | 'speaking';
-
-const LoopingVoiceHUD = () => {
-  const [status, setStatus] = useState<AiStatus>('listening');
+const LoopingVoiceHUD = ({ onSendMessage, isLoading: externalLoading }: LoopingVoiceHUDProps) => {
   const [particles, setParticles] = useState<React.CSSProperties[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
   const coreRef = useRef<HTMLDivElement>(null);
 
+  const {
+    mode,
+    setMode,
+    status,
+    transcript,
+    response,
+    audioLevel,
+    frequencyBars,
+    inputDb,
+    isVoiceActive,
+    isWakeWordDetected,
+    wakeWord,
+    startListening,
+    stopListening,
+    sendVoiceQuery,
+    cancel,
+  } = useRealVoice({
+    skipApiQuery: true,
+    onTranscriptReady: (transcriptText) => {
+      if (onSendMessage) {
+        onSendMessage(transcriptText);
+      }
+    },
+    onQueryComplete: (query, res) => {
+      if (onSendMessage) {
+        onSendMessage(query);
+      }
+    },
+  });
+
+  const effectiveStatus = externalLoading ? 'thinking' : status;
+
   useEffect(() => {
     // Generate particles only once on mount
-    const newParticles = Array.from({ length: 150 }).map(() => { // Increased particle count
+    const newParticles = Array.from({ length: 110 }).map(() => {
       const angle = Math.random() * 2 * Math.PI;
-      const radius = 50 + Math.random() * 150;
+      const radius = 50 + Math.random() * 140;
       return {
         '--size': `${Math.random() * 2 + 1}px`,
         '--x-start': `${Math.cos(angle) * radius}px`,
@@ -27,30 +62,9 @@ const LoopingVoiceHUD = () => {
         '--y-end': `${Math.sin(angle + (Math.random() - 0.5) * Math.PI) * radius}px`,
         '--delay': `${Math.random() * 15}s`,
         '--duration': `${Math.random() * 10 + 10}s`,
-      } as React.CSSProperties
+      } as React.CSSProperties;
     });
     setParticles(newParticles);
-  }, []);
-  
-  useEffect(() => {
-    let isMounted = true;
-    const sequence = async () => {
-      while (isMounted) {
-        if (isMounted) setStatus('listening');
-        await new Promise(resolve => setTimeout(resolve, 5000));
-        if (!isMounted) break;
-        
-        if (isMounted) setStatus('thinking');
-        await new Promise(resolve => setTimeout(resolve, 6000));
-        if (!isMounted) break;
-
-        if (isMounted) setStatus('speaking');
-        await new Promise(resolve => setTimeout(resolve, 7000));
-        if (!isMounted) break;
-      }
-    };
-    sequence();
-    return () => { isMounted = false; };
   }, []);
 
   useEffect(() => {
@@ -62,7 +76,7 @@ const LoopingVoiceHUD = () => {
       const { left, top, width, height } = el.getBoundingClientRect();
       const x = (e.clientX - left) / width - 0.5;
       const y = (e.clientY - top) / height - 0.5;
-      coreRef.current.style.transform = `rotateY(${x * 15}deg) rotateX(${-y * 15}deg)`; // Increased rotation
+      coreRef.current.style.transform = `rotateY(${x * 15}deg) rotateX(${-y * 15}deg)`;
     };
 
     const handleMouseLeave = () => {
@@ -80,164 +94,378 @@ const LoopingVoiceHUD = () => {
     };
   }, []);
 
+  const handleToggleVoice = () => {
+    if (effectiveStatus === 'speaking') {
+      cancel();
+      if (mode === 'auto') {
+        setTimeout(startListening, 200);
+      }
+      return;
+    }
 
-  const statusText: Record<AiStatus, string> = {
-    listening: 'Listening...',
-    thinking: 'Processing...',
-    speaking: 'Responding...',
+    if (effectiveStatus === 'listening') {
+      stopListening();
+    } else {
+      startListening();
+    }
   };
-
-  const statusDurations: Record<AiStatus, number> = {
-    listening: 5,
-    thinking: 6,
-    speaking: 7,
-  };
-
-  const Hexagon = ({ className, ...props }: React.SVGProps<SVGSVGElement>) => (
-    <svg viewBox="0 0 24 24" fill="currentColor" className={cn("h-full w-full", className)} {...props}>
-      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4a2 2 0 0 0 1-1.73z" />
-    </svg>
-  );
 
   return (
     <div className="relative flex flex-col items-center justify-center">
-      <div ref={containerRef} className="h-[400px] w-[400px]" style={{ perspective: '1500px' }}>
-        <div ref={coreRef} className="relative h-full w-full transition-transform duration-300 ease-out" style={{ transformStyle: 'preserve-3d' }}>
-          
-          {/* BG Layers */}
-          <div className="absolute inset-0 rounded-full bg-primary/5 blur-3xl animate-pulse-slow" style={{ transform: 'translateZ(-150px)' }} />
+      {/* High-Tech Mode Switcher Pill */}
+      <div className="flex items-center gap-2 p-1 rounded-full bg-background/80 border border-primary/30 mb-2 z-20 shadow-inner">
+        <button
+          type="button"
+          onClick={() => setMode('manual')}
+          className={cn(
+            'flex items-center gap-1.5 py-1 px-3 rounded-full text-[10px] font-mono tracking-wider transition-all duration-200 select-none cursor-pointer',
+            mode === 'manual'
+              ? 'bg-primary/25 text-primary border border-primary/60 font-bold shadow-[0_0_12px_hsl(var(--primary)/0.3)]'
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
+          )}
+        >
+          <Mic size={11} className={mode === 'manual' ? 'text-accent' : 'opacity-60'} />
+          <span>MANUAL</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setMode('auto')}
+          className={cn(
+            'flex items-center gap-1.5 py-1 px-3 rounded-full text-[10px] font-mono tracking-wider transition-all duration-200 select-none cursor-pointer',
+            mode === 'auto'
+              ? 'bg-accent/25 text-accent border border-accent/60 font-bold shadow-[0_0_12px_hsl(var(--accent)/0.3)]'
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
+          )}
+        >
+          <Radio size={11} className={mode === 'auto' ? 'text-accent animate-pulse' : 'opacity-60'} />
+          <span>AUTO: "HERMES"</span>
+        </button>
+      </div>
+
+      <div ref={containerRef} className="h-[200px] w-[200px] sm:h-[240px] sm:w-[240px] md:h-[270px] md:w-[270px] my-0.5" style={{ perspective: '1400px' }}>
+        <div
+          ref={coreRef}
+          className="relative h-full w-full transition-transform duration-300 ease-out"
+          style={{ transformStyle: 'preserve-3d' }}
+        >
+          {/* Holographic Background Glow */}
           <div
-            className="absolute inset-0"
+            className={cn(
+              'absolute inset-0 rounded-full blur-3xl transition-colors duration-500',
+              isWakeWordDetected
+                ? 'bg-accent/30 animate-pulse'
+                : 'bg-primary/10 animate-pulse-slow'
+            )}
+            style={{ transform: 'translateZ(-140px)' }}
+          />
+
+          {/* Drifting Particles */}
+          <div
+            className={cn(
+              'absolute inset-0 transition-transform duration-1000',
+              effectiveStatus === 'thinking' ? 'animate-particle-swirl' : ''
+            )}
+            style={{ transform: 'translateZ(-70px)', transformStyle: 'preserve-3d' }}
+          >
+            {particles.slice(0, 45).map((style, i) => (
+              <div
+                key={i}
+                className="absolute left-1/2 top-1/2 h-[var(--size)] w-[var(--size)] rounded-full bg-accent/70 animate-particle-drift"
+                style={style}
+              />
+            ))}
+          </div>
+
+          {/* Real Audio-reactive Gyro Rings */}
+          <div
+            className="absolute inset-0 h-full w-full transition-transform duration-150"
             style={{
-                transform: 'translateZ(-100px)',
-                maskImage: 'radial-gradient(circle at center, white 20%, transparent 70%)',
+              transform: `scale(${1 + audioLevel * 0.35})`,
+              transformStyle: 'preserve-3d',
             }}
           >
-            <div className="absolute inset-0 animate-circuit-pulse [background-image:radial-gradient(hsl(var(--primary)/0.15)_1px,transparent_1px)] [background-size:1.5rem_1.5rem]" />
-          </div>
-          
-          {/* Drifting Particles */}
-          <div className={cn("absolute inset-0 transition-transform duration-1000", status === 'thinking' ? 'animate-particle-swirl' : '')} style={{ transform: 'translateZ(-80px)', transformStyle: 'preserve-3d' }}>
-            {particles.slice(0, 50).map((style, i) => ( // Increased count
-              <div key={i} className="absolute left-1/2 top-1/2 h-[var(--size)] w-[var(--size)] rounded-full bg-accent/70 animate-particle-drift" style={style} />
-            ))}
+            <div
+              className={cn(
+                'absolute inset-[2%] rounded-full border-2 border-dashed border-primary/20',
+                effectiveStatus === 'thinking'
+                  ? 'animate-[spin_10s_linear_infinite]'
+                  : 'animate-[spin_40s_linear_infinite]'
+              )}
+              style={{ transform: 'translateZ(-40px) rotateX(70deg)' }}
+            />
+            <div
+              className="absolute inset-[8%] rounded-full border border-dotted border-accent/25 animate-[spin_30s_linear_infinite_reverse]"
+              style={{ transform: 'translateZ(-30px) rotateX(70deg)' }}
+            />
+            <div
+              className="absolute inset-[15%] rounded-full border border-primary/30 animate-flicker"
+              style={{ transform: 'translateZ(0px) rotateX(70deg)' }}
+            />
+            <div
+              className={cn(
+                'absolute inset-[22%] rounded-full border-2',
+                isWakeWordDetected
+                  ? 'border-accent shadow-[0_0_25px_hsl(var(--accent))] animate-[spin_4s_linear_infinite]'
+                  : effectiveStatus === 'thinking'
+                  ? 'animate-[spin_8s_linear_infinite_reverse] border-accent/70'
+                  : 'animate-[spin_12s_linear_infinite_reverse] border-accent/70'
+              )}
+              style={{ transform: 'translateZ(20px) rotateX(70deg)' }}
+            />
+            <div
+              className="absolute inset-[28%] rounded-full border border-dashed border-primary/40 animate-[spin_20s_linear_infinite]"
+              style={{ transform: 'translateZ(40px) rotateX(70deg)' }}
+            />
           </div>
 
-          {/* Main Rings (Gyroscope) */}
-          <div className={cn("absolute inset-0 h-full w-full transition-transform duration-1000", status === 'thinking' ? 'scale-105' : 'scale-100')} style={{ transformStyle: 'preserve-3d' }}>
-            <div className={cn("absolute inset-[2%] rounded-full border-2 border-dashed border-primary/10", status === 'thinking' ? 'animate-[spin_10s_linear_infinite]' : 'animate-[spin_40s_linear_infinite]')} style={{ transform: 'translateZ(-40px) rotateX(70deg)' }} />
-            <div className="absolute inset-[8%] rounded-full border border-dotted border-accent/20 animate-[spin_30s_linear_infinite_reverse]" style={{ transform: 'translateZ(-30px) rotateX(70deg)' }} />
-            <div className="absolute inset-[15%] rounded-full border border-primary/30 animate-flicker" style={{ transform: 'translateZ(0px) rotateX(70deg)' }} />
-            <div className={cn("absolute inset-[22%] rounded-full border-2 border-accent/70", status === 'thinking' ? 'animate-[spin_8s_linear_infinite_reverse]' : 'animate-[spin_12s_linear_infinite_reverse]')} style={{ transform: 'translateZ(20px) rotateX(70deg)' }} />
-            <div className="absolute inset-[28%] rounded-full border border-dashed border-primary/40 animate-[spin_20s_linear_infinite]" style={{ transform: 'translateZ(40px) rotateX(70deg)' }} />
-            <div className="absolute inset-[18%] rounded-full border border-primary/20 animate-[spin_25s_linear_infinite]" style={{ transform: 'translateZ(10px) rotateX(-50deg) rotateY(20deg)' }} />
-          </div>
-
-          {/* State-specific Visuals */}
-          <div className="absolute inset-0 h-full w-full" style={{ transformStyle: 'preserve-3d' }}>
-            {/* LISTENING */}
-            <div className={cn("absolute inset-0 transition-opacity duration-500", status === 'listening' ? 'opacity-100' : 'opacity-0')}>
-              <svg viewBox="-100 -100 200 200" className="h-full w-full animate-pulse-slow">
-                {Array.from({ length: 120 }).map((_, i) => (
-                  <rect key={i} x="-1" y="-90" width="2" height="4" rx="1" fill="hsl(var(--accent))" transform={`rotate(${i * 3})`}
-                    className="animate-waveform-bar" style={{ animationDelay: `${i * 0.025}s`, animationDuration: '1.5s' }} />
-                ))}
+          {/* Visuals for LISTENING Mode: Real Web Audio Frequency Bars */}
+          <div className="absolute inset-0 h-full w-full pointer-events-none" style={{ transformStyle: 'preserve-3d' }}>
+            <div
+              className={cn(
+                'absolute inset-0 transition-opacity duration-300',
+                effectiveStatus === 'listening' ? 'opacity-100' : 'opacity-40'
+              )}
+            >
+              <svg viewBox="-100 -100 200 200" className="h-full w-full">
+                {Array.from({ length: 60 }).map((_, i) => {
+                  const barVal = frequencyBars[i % frequencyBars.length] || 10;
+                  const barHeight =
+                    effectiveStatus === 'listening'
+                      ? Math.max(3, (barVal / 100) * 20)
+                      : effectiveStatus === 'monitoring'
+                      ? 5
+                      : 3;
+                  return (
+                    <rect
+                      key={i}
+                      x="-1"
+                      y="-90"
+                      width="2"
+                      height={barHeight}
+                      rx="1"
+                      fill={
+                        effectiveStatus === 'listening'
+                          ? 'hsl(var(--destructive))'
+                          : isWakeWordDetected
+                          ? 'hsl(var(--accent))'
+                          : effectiveStatus === 'monitoring'
+                          ? 'hsl(var(--primary)/0.7)'
+                          : 'hsl(var(--accent))'
+                      }
+                      transform={`rotate(${i * 6})`}
+                      className="transition-all duration-75"
+                    />
+                  );
+                })}
               </svg>
-              <div className="absolute inset-0">
-                {particles.slice(50, 70).map((style, i) => ( // Using different particles
-                    <div key={i}
-                        className="absolute left-1/2 top-1/2 h-[var(--size)] w-[var(--size)] rounded-full bg-accent animate-particle-suck-in"
-                        style={{ ...style, animationDuration: `${Math.random() * 2 + 1.5}s`, animationDelay: `${Math.random() * 1.5}s` }} />
-                ))}
-              </div>
             </div>
-            
-            {/* THINKING */}
-            <div className={cn("absolute inset-0 transition-opacity duration-500", status === 'thinking' ? 'opacity-100' : 'opacity-0')}>
-              <div className="absolute inset-[25%] animate-scanner-line-rotate" style={{'--speed': '2.5s'} as React.CSSProperties}>
+
+            {/* Visuals for THINKING Mode */}
+            {effectiveStatus === 'thinking' && (
+              <div className="absolute inset-0 animate-fade-in">
+                <div
+                  className="absolute inset-[25%] animate-scanner-line-rotate"
+                  style={{ '--speed': '2.5s' } as React.CSSProperties}
+                >
                   <div className="absolute top-0 left-1/2 h-1/2 w-px animate-scanner-line-fade bg-gradient-to-b from-accent/0 to-accent" />
-              </div>
-              <div className="absolute inset-[25%] animate-scanner-line-rotate" style={{'--speed': '3.5s', animationDirection: 'reverse'} as React.CSSProperties}>
-                  <div className="absolute bottom-0 left-1/2 h-1/2 w-px animate-scanner-line-fade bg-gradient-to-t from-accent/0 to-accent" />
-              </div>
-              <div className="absolute inset-[15%] animate-scanner-line-rotate" style={{'--speed': '6s'} as React.CSSProperties}>
-                  <div className="absolute top-0 right-1/2 h-1/2 w-px animate-scanner-line-fade bg-gradient-to-b from-primary/0 to-primary/70" />
-              </div>
-               
-              {Array.from({ length: 10 }).map((_, i) => ( // Increased glyph count
-                <div key={i} className="absolute text-primary/30 animate-glyph-float" style={{
-                  left: `${5 + i * 9}%`,
-                  height: `${12 + (i%4)*5}px`,
-                  animationDelay: `${i * 0.3}s`,
-                  animationDuration: `${4 + Math.random() * 3}s`,
-                  transform: `translateZ(${10 + Math.random()*50}px)`
-                }}>
-                  <Hexagon />
                 </div>
-              ))}
-            </div>
+                <div
+                  className="absolute inset-[25%] animate-scanner-line-rotate"
+                  style={{ '--speed': '3.5s', animationDirection: 'reverse' } as React.CSSProperties}
+                >
+                  <div className="absolute bottom-0 left-1/2 h-1/2 w-px animate-scanner-line-fade bg-gradient-to-t from-accent/0 to-accent" />
+                </div>
+              </div>
+            )}
 
-            {/* SPEAKING */}
-            <div className={cn("absolute inset-0 transition-opacity duration-500", status === 'speaking' ? 'opacity-100' : 'opacity-0')}>
-              {Array.from({ length: 5 }).map((_, i) => ( // Increased ripple count
-                <div key={i} className="absolute inset-0 rounded-full border-2 border-primary/70 animate-speaking-ripple" style={{ animationDelay: `${i * 0.4}s` }}/>
-              ))}
-              <div className="absolute inset-0 rounded-full animate-energy-pulse border-2 border-accent" />
-            </div>
+            {/* Visuals for SPEAKING Mode */}
+            {effectiveStatus === 'speaking' && (
+              <div className="absolute inset-0 animate-fade-in">
+                <div className="absolute inset-0 rounded-full border-2 border-primary/70 animate-speaking-ripple" />
+                <div className="absolute inset-0 rounded-full border-2 border-accent animate-speaking-ripple [animation-delay:0.4s]" />
+              </div>
+            )}
           </div>
-          
-          {/* Core Disc */}
-          <div className="absolute inset-[32%] rounded-full" style={{ transform: 'translateZ(60px)', transformStyle: 'preserve-3d' }}>
-            <div className="absolute inset-0 rounded-full bg-primary/20 animate-breathing-glow [animation-duration:3s]" />
+
+          {/* Interactive Core Disc Button */}
+          <div
+            className="absolute inset-[30%] rounded-full cursor-pointer transition-transform duration-300 hover:scale-105"
+            style={{ transform: 'translateZ(60px)', transformStyle: 'preserve-3d' }}
+            onClick={handleToggleVoice}
+            onMouseEnter={() => soundFx.playHover()}
+            title={
+              mode === 'auto'
+                ? effectiveStatus === 'monitoring'
+                  ? 'Ambient listening active for "Hermes" (or click to force wake)'
+                  : 'Click to stop listening'
+                : effectiveStatus === 'listening'
+                ? 'Click to stop listening'
+                : 'Click to activate voice command'
+            }
+          >
+            <div
+              className={cn(
+                'absolute inset-0 rounded-full transition-colors',
+                isWakeWordDetected
+                  ? 'bg-accent/40 border-2 border-accent animate-pulse shadow-[0_0_35px_hsl(var(--accent))]'
+                  : effectiveStatus === 'listening'
+                  ? 'bg-destructive/30 border-2 border-destructive animate-pulse'
+                  : effectiveStatus === 'thinking'
+                  ? 'bg-accent/20 border-2 border-accent animate-spin-slow'
+                  : effectiveStatus === 'monitoring'
+                  ? 'bg-accent/15 border-2 border-accent/70'
+                  : 'bg-primary/20 border-2 border-primary hover:bg-primary/30 hover:border-accent'
+              )}
+            />
             <div className="absolute inset-0 rounded-full border-2 border-primary animate-holographic-flicker" />
-            <div className={cn("absolute inset-0 flex items-center justify-center text-4xl font-bold tracking-[0.2em] text-primary/90 [text-shadow:0_0_15px_hsl(var(--primary))]", orbitron.className)}>
-              JARVIS
+
+            <div
+              className={cn(
+                'absolute inset-0 flex flex-col items-center justify-center text-primary/90 select-none',
+                orbitron.className
+              )}
+            >
+              {isWakeWordDetected ? (
+                <>
+                  <Zap className="h-9 w-9 text-accent drop-shadow-[0_0_12px_hsl(var(--accent))] animate-bounce" />
+                  <span className="text-[10px] tracking-widest text-accent font-bold font-mono mt-1">
+                    AWOKEN
+                  </span>
+                </>
+              ) : effectiveStatus === 'listening' ? (
+                <>
+                  <MicOff className="h-9 w-9 text-destructive drop-shadow-[0_0_10px_hsl(var(--destructive))]" />
+                  <span className="text-[10px] tracking-widest text-destructive font-bold font-mono mt-1">
+                    STOP
+                  </span>
+                </>
+              ) : effectiveStatus === 'thinking' ? (
+                <>
+                  <div className="h-8 w-8 rounded-full border-2 border-accent border-t-transparent animate-spin mb-1" />
+                  <span className="text-[9px] tracking-widest text-accent font-mono">
+                    THINKING
+                  </span>
+                </>
+              ) : effectiveStatus === 'monitoring' ? (
+                <>
+                  <Radio className="h-8 w-8 text-accent drop-shadow-[0_0_8px_hsl(var(--accent))] animate-pulse" />
+                  <span className="text-sm font-bold tracking-[0.2em] text-accent mt-1">
+                    HERMES
+                  </span>
+                  <span className="text-[8px] tracking-widest text-primary/80 font-mono">
+                    SAY "HERMES"
+                  </span>
+                </>
+              ) : (
+                <>
+                  <div className="text-3xl font-black tracking-[0.25em] [text-shadow:0_0_20px_hsl(var(--primary))]">
+                    HERMES
+                  </div>
+                  <div className="flex items-center gap-1 text-[9px] tracking-widest text-accent font-mono mt-0.5">
+                    <Mic size={11} className="text-accent" />
+                    <span>TAP TO SPEAK</span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
-          {/* Multi-layered Orbiting Particles */}
-          <div className="absolute inset-0" style={{ transformStyle: 'preserve-3d' }}>
-            {particles.slice(70, 85).map((style, i) => (
-              <div key={`orbit-a-${i}`} className="absolute inset-0 animate-orbit" style={{ 
-                  ...style, 
-                  '--radius': `${180 + i * 4}px`, 
-                  '--duration': `${10 + i * 2}s`,
-                  transform: 'translateZ(80px)' 
-              }}>
-                  <div className="absolute left-1/2 top-1/2 h-1.5 w-1.5 rounded-full bg-accent" style={{ transform: 'translateX(var(--radius))' }} />
-              </div>
-            ))}
-            {particles.slice(85, 100).map((style, i) => (
-              <div key={`orbit-b-${i}`} className="absolute inset-0 animate-orbit" style={{ 
-                  ...style, 
-                  '--radius': `${190 + i * 3}px`, 
-                  '--duration': `${12 + i * 2.5}s`,
-                  animationDirection: 'reverse',
-                  transform: 'rotateX(90deg) translateZ(10px)' 
-              }}>
-                  <div className="absolute left-1/2 top-1/2 h-1 w-1 rounded-full bg-primary/80" style={{ transform: 'translateX(var(--radius))' }} />
-              </div>
-            ))}
-            {particles.slice(100, 115).map((style, i) => (
-              <div key={`orbit-c-${i}`} className="absolute inset-0 animate-orbit" style={{ 
-                  ...style, 
-                  '--radius': `${200 + i * 2}px`, 
-                  '--duration': `${15 + i * 2}s`,
-                  transform: 'rotateY(60deg) rotateX(-20deg) translateZ(-20px)' 
-              }}>
-                  <div className="absolute left-1/2 top-1/2 h-1 w-1 rounded-full bg-accent/70 blur-[1px]" style={{ transform: 'translateX(var(--radius))' }} />
+          {/* Orbiting Particles */}
+          <div className="absolute inset-0 pointer-events-none" style={{ transformStyle: 'preserve-3d' }}>
+            {particles.slice(60, 75).map((style, i) => (
+              <div
+                key={`orbit-${i}`}
+                className="absolute inset-0 animate-orbit"
+                style={{
+                  ...style,
+                  '--radius': `${115 + (i % 6) * 3}px`,
+                  '--duration': `${11 + i * 2}s`,
+                  transform: 'translateZ(75px)',
+                } as React.CSSProperties}
+              >
+                <div
+                  className="absolute left-1/2 top-1/2 h-1.5 w-1.5 rounded-full bg-accent"
+                  style={{ transform: 'translateX(var(--radius))' }}
+                />
               </div>
             ))}
           </div>
-
         </div>
       </div>
-      <div 
-        key={status} 
-        className={cn("absolute -bottom-4 text-center text-accent tracking-widest text-sm animate-fade-in-out", orbitron.className)}
-        style={{ animationDuration: `${statusDurations[status]}s` }}
-      >
-        {statusText[status]}
+
+      {/* Dynamic Status / Real-time Transcript Banner */}
+      <div className="relative mt-1 flex flex-col items-center justify-center max-w-md px-4 text-center z-20">
+        <div
+          className={cn(
+            'text-xs tracking-widest font-mono flex items-center justify-center gap-2',
+            isWakeWordDetected
+              ? 'text-accent font-bold animate-pulse'
+              : effectiveStatus === 'listening'
+              ? 'text-destructive font-bold animate-pulse'
+              : effectiveStatus === 'thinking'
+              ? 'text-accent'
+              : effectiveStatus === 'speaking'
+              ? 'text-emerald-400'
+              : effectiveStatus === 'monitoring'
+              ? 'text-accent'
+              : 'text-primary/80',
+            orbitron.className
+          )}
+        >
+          {isWakeWordDetected ? (
+            <>
+              <Zap size={14} className="text-accent animate-bounce" />
+              <span>⚡ "HERMES" AWOKEN! RECORDING COMMAND...</span>
+            </>
+          ) : effectiveStatus === 'listening' ? (
+            <>
+              <span className="h-2 w-2 rounded-full bg-destructive animate-ping" />
+              <span>RECORDING COMMAND... (SPEAK NOW)</span>
+            </>
+          ) : effectiveStatus === 'thinking' ? (
+            <>
+              <span className="h-2 w-2 rounded-full bg-accent animate-ping" />
+              <span>HERMES INFERENCE RUNNING IN WSL...</span>
+            </>
+          ) : effectiveStatus === 'speaking' ? (
+            <>
+              <span className="h-2 w-2 rounded-full bg-emerald-400" />
+              <span>HERMES RESPONDING...</span>
+            </>
+          ) : effectiveStatus === 'monitoring' ? (
+            <>
+              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
+              <span>AMBIENT LISTENING // SAY "HERMES" HANDS-FREE</span>
+            </>
+          ) : (
+            <span>TAP CORE OR MICROPHONE TO SPEAK COMMAND</span>
+          )}
+        </div>
+
+        {/* Real-time Spoken Transcript */}
+        {transcript && (effectiveStatus === 'listening' || effectiveStatus === 'thinking') && (
+          <div className="mt-2 px-3 py-1.5 rounded-md border border-accent/40 bg-background/80 text-xs text-accent italic max-w-sm truncate animate-fade-in shadow-[0_0_15px_hsl(var(--primary)/0.2)]">
+            "{transcript}"
+          </div>
+        )}
+
+        {/* Live Microphone Input Telemetry Indicator (Revealed on Speech / Listening) */}
+        {(effectiveStatus === 'listening' || effectiveStatus === 'monitoring' || isVoiceActive) && (
+          <div className="mt-2 flex items-center justify-center gap-2 px-3 py-1 rounded-full border border-primary/30 bg-background/60 text-[9px] font-mono text-muted-foreground animate-fade-in">
+            <span
+              className={cn(
+                'h-1.5 w-1.5 rounded-full',
+                isVoiceActive ? 'bg-destructive animate-ping' : 'bg-emerald-400'
+              )}
+            />
+            <span className={cn(isVoiceActive ? 'text-destructive font-bold' : 'text-primary')}>
+              {isVoiceActive ? 'VOICE DETECTED' : 'MIC ACTIVE'}
+            </span>
+            <span className="text-primary/40">//</span>
+            <span>{inputDb} dBFS</span>
+          </div>
+        )}
       </div>
     </div>
   );
