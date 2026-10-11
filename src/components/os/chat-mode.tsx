@@ -57,11 +57,12 @@ import {
   DialogDescription,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Search, Zap, Layers, Command } from 'lucide-react';
+import { Search, Zap, Layers, Command, Wrench } from 'lucide-react';
 import { SlashCommandAutocomplete } from './slash-command-autocomplete';
 import { HermesCommandsDialog } from './hermes-commands-dialog';
 import { searchHermesCommands, type HermesCommand } from '@/lib/hermes-commands';
 import { GodsEyeModal } from './gods-eye-modal';
+import { AutoSetupModal } from './auto-setup-modal';
 import { buildGodsEyeUrl, GODS_EYE_PRESETS, cleanGeographicQuery, type GeoLocation } from '@/lib/godseye';
 import { transcribeSarvamAudio } from '@/lib/sarvam';
 
@@ -102,6 +103,7 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [isCommandsDialogOpen, setIsCommandsDialogOpen] = useState(false);
   const [isGodsEyeOpen, setIsGodsEyeOpen] = useState(false);
+  const [isAutoSetupOpen, setIsAutoSetupOpen] = useState(false);
   const [godsEyeTarget, setGodsEyeTarget] = useState<string | undefined>(undefined);
   const [godsEyeLocation, setGodsEyeLocation] = useState<GeoLocation | null>(null);
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
@@ -544,6 +546,25 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
       executeClientAction('voice');
       return;
     }
+    if (
+      queryLower === '/autosetup' ||
+      queryLower === '/selfheal' ||
+      queryLower === '/diagnostics' ||
+      queryLower === 'auto setup' ||
+      queryLower === 'setup everything' ||
+      queryLower === 'detect everything' ||
+      queryLower === 'self heal' ||
+      queryLower === 'fix all issues' ||
+      queryLower === 'run diagnostics'
+    ) {
+      soundFx.playClick(1100);
+      setIsAutoSetupOpen(true);
+      toast({
+        title: "⚡ Autonomous Diagnostics & Self-Healing",
+        description: "Scanning and auto-provisioning all 7 Hermes subsystems...",
+      });
+      return;
+    }
 
     // Intercept God's Eye commands and natural language geographic requests
     const isGodsEyeSlash = queryText.match(/^\/(?:godseye|locate|geoview|satellite|osint-geo)(?:\s+(.*))?$/i);
@@ -873,6 +894,19 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
           >
             <Globe size={13} className="text-accent animate-spin" style={{ animationDuration: '20s' }} />
             <span className="hidden xl:inline text-[11px] font-bold">GOD&apos;S EYE</span>
+          </button>
+
+          {/* Autonomous Setup & Self-Healing Launcher */}
+          <button
+            onClick={() => {
+              soundFx.playClick(1100);
+              setIsAutoSetupOpen(true);
+            }}
+            className="flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2 sm:px-2.5 py-1.5 text-xs font-mono text-emerald-400 hover:bg-emerald-500/25 hover:border-emerald-400 hover:shadow-[0_0_15px_hsl(142_71%_45%/0.35)] transition-all shrink-0 cursor-pointer"
+            title="Open Autonomous System Diagnostics & Self-Healing Center"
+          >
+            <Wrench size={13} className="text-emerald-400 animate-pulse" />
+            <span className="hidden xl:inline text-[11px] font-bold">AUTO-SETUP</span>
           </button>
 
           <ThemeSwitcher />
@@ -1293,6 +1327,11 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
         }}
         initialLocation={godsEyeLocation}
         targetQuery={godsEyeTarget}
+      />
+      {/* Autonomous System Diagnostics & Self-Healing Modal */}
+      <AutoSetupModal
+        isOpen={isAutoSetupOpen}
+        onClose={() => setIsAutoSetupOpen(false)}
       />
     </div>
   );

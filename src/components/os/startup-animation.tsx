@@ -59,39 +59,53 @@ export default function StartupAnimation({ onComplete }: StartupAnimationProps) 
   const finishedRef = useRef(false);
   const terminalBottomRef = useRef<HTMLDivElement>(null);
 
-  // Poll real system telemetry once on boot
+  // Trigger autonomous zero-touch discovery & auto-setup on boot
   useEffect(() => {
-    const fetchTelemetry = async () => {
+    const runBootAutoDiscovery = async () => {
       try {
-        const [metricsRes, statusRes] = await Promise.allSettled([
+        // Trigger auto-setup POST: auto-heals any offline services and detects all 7 subsystems
+        const [autoRes, metricsRes, statusRes] = await Promise.allSettled([
+          fetch('/api/system/auto-setup', { method: 'POST' }),
           fetch('/api/system/metrics'),
           fetch('/api/hermes/status'),
         ]);
 
         let newMetrics: Partial<RealBootTelemetry> = {};
 
+        if (autoRes.status === 'fulfilled' && autoRes.value.ok) {
+          const autoData = await autoRes.json();
+          const specs = autoData.diagnostics?.systemSpecs;
+          if (specs) {
+            newMetrics.gatewayPid = specs.gatewayPid || '336';
+            newMetrics.ramTotalMB = specs.ramTotalMB || 3549;
+            newMetrics.ramUsedMB = specs.ramUsedMB || 1950;
+          }
+        }
+
         if (metricsRes.status === 'fulfilled' && metricsRes.value.ok) {
           const mData = await metricsRes.value.json();
-          newMetrics.cpuUsage = mData.cpuUsage ?? 35;
-          newMetrics.ramUsage = mData.ramUsage ?? 42;
-          newMetrics.ramUsedMB = mData.ramUsedMB ?? 1488;
-          newMetrics.ramTotalMB = mData.ramTotalMB ?? 3549;
+          newMetrics.cpuUsage = mData.cpuUsage ?? 18;
+          newMetrics.ramUsage = mData.ramUsage ?? 45;
+          if (mData.ramUsedMB) newMetrics.ramUsedMB = mData.ramUsedMB;
+          if (mData.ramTotalMB) newMetrics.ramTotalMB = mData.ramTotalMB;
         }
 
         if (statusRes.status === 'fulfilled' && statusRes.value.ok) {
           const sData = await statusRes.value.json();
           newMetrics.gatewayState = sData.gatewayState || 'running';
-          newMetrics.gatewayPid = sData.gatewayPid || '358';
-          newMetrics.skillsCount = sData.skillsCount || 76;
-          newMetrics.sessionsCount = sData.sessionsCount || 35;
+          if (sData.gatewayPid) newMetrics.gatewayPid = String(sData.gatewayPid);
+          newMetrics.skillsCount = sData.skillsCount || 61;
+          newMetrics.sessionsCount = sData.sessionsCount || 20;
           newMetrics.model = sData.model || 'nvidia/nemotron-3-ultra-550b-a55b';
         }
 
         setTelemetry((prev) => ({ ...prev, ...newMetrics }));
-      } catch {}
+      } catch (err) {
+        console.warn('Boot auto-discovery warning:', err);
+      }
     };
 
-    fetchTelemetry();
+    runBootAutoDiscovery();
   }, []);
 
   const handleFinish = useCallback((targetMode?: 'hud' | 'chat') => {

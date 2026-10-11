@@ -25,8 +25,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { MessageSquare, Volume2, VolumeX, ShieldCheck, Cpu, Zap, Flame, Shield, Layers, Radio, Mic, Search, Disc, SlidersHorizontal, Globe } from 'lucide-react';
+import { MessageSquare, Volume2, VolumeX, ShieldCheck, Cpu, Zap, Flame, Shield, Layers, Radio, Mic, Search, Disc, SlidersHorizontal, Globe, Wrench } from 'lucide-react';
 import { GodsEyeModal } from './gods-eye-modal';
+import { AutoSetupModal } from './auto-setup-modal';
 import { type AppMode } from '@/app/page';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -46,6 +47,7 @@ const HUD = ({ setMode, onSelectSession }: HUDProps) => {
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isHermesConfigOpen, setIsHermesConfigOpen] = useState(false);
   const [isGodsEyeOpen, setIsGodsEyeOpen] = useState(false);
+  const [isAutoSetupOpen, setIsAutoSetupOpen] = useState(false);
   const [godsEyeLocation, setGodsEyeLocation] = useState<GeoLocation | null>(null);
   const [godsEyeTarget, setGodsEyeTarget] = useState<string | undefined>(undefined);
   const [activeJarvisTask, setActiveJarvisTask] = useState<{
@@ -96,6 +98,10 @@ const HUD = ({ setMode, onSelectSession }: HUDProps) => {
         e.preventDefault();
         soundFx.playClick(1100);
         setIsGodsEyeOpen((prev) => !prev);
+      } else if (e.key === 'a' || e.key === 'A') {
+        e.preventDefault();
+        soundFx.playClick(1100);
+        setIsAutoSetupOpen((prev) => !prev);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -377,6 +383,16 @@ const HUD = ({ setMode, onSelectSession }: HUDProps) => {
                   <SlidersHorizontal size={14} className="text-accent" />
                   <span>⚙️ Hermes Configurations Matrix</span>
                 </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    soundFx.playClick(1000);
+                    setIsAutoSetupOpen(true);
+                  }}
+                  className="cursor-pointer hover:bg-emerald-500/20 hover:text-emerald-400 flex items-center gap-2 py-2 text-emerald-400 font-bold"
+                >
+                  <Wrench size={14} className="text-emerald-400" />
+                  <span>⚡ Autonomous Auto-Setup &amp; Self-Heal</span>
+                </DropdownMenuItem>
                 <DropdownMenuSeparator className="bg-primary/20" />
                 <DropdownMenuItem
                   onClick={() => runProtocol('Reactor Overclock & Memory Purge', 'PROTOCOL: HYPER_BOOST')}
@@ -424,6 +440,19 @@ const HUD = ({ setMode, onSelectSession }: HUDProps) => {
             >
               <Globe size={13} className="text-accent animate-spin" style={{ animationDuration: '20s' }} />
               <span className="hidden xl:inline text-xs font-bold">GOD&apos;S EYE</span>
+            </button>
+
+            {/* Autonomous Setup & Self-Healing Launcher */}
+            <button
+              onClick={() => {
+                soundFx.playClick(1100);
+                setIsAutoSetupOpen(true);
+              }}
+              className="flex items-center gap-1.5 rounded-md border border-emerald-500/40 bg-emerald-500/15 px-2 sm:px-2.5 py-1.5 text-xs font-bold text-emerald-400 transition-all hover:bg-emerald-500/25 hover:border-emerald-400 hover:shadow-[0_0_18px_hsl(142_71%_45%/0.4)] shrink-0 cursor-pointer"
+              title="Open Autonomous System Diagnostics & Self-Healing Center [A]"
+            >
+              <Wrench size={13} className="text-emerald-400 animate-pulse" />
+              <span className="hidden xl:inline text-xs font-bold">AUTO-SETUP</span>
             </button>
 
             {/* Switch to Chat Mode */}
@@ -633,6 +662,11 @@ const HUD = ({ setMode, onSelectSession }: HUDProps) => {
         }}
         initialLocation={godsEyeLocation}
         targetQuery={godsEyeTarget}
+      />
+      {/* Autonomous System Diagnostics & Self-Healing Modal */}
+      <AutoSetupModal
+        isOpen={isAutoSetupOpen}
+        onClose={() => setIsAutoSetupOpen(false)}
       />
     </div>
   );
