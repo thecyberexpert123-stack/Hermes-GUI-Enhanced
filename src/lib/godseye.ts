@@ -4,6 +4,8 @@
  * for ~/gods-eye-view (Cesium 3D Globe, Live ADS-B aircraft, AIS ships, Satellites).
  */
 
+export type TargetCategory = 'military' | 'chokepoint' | 'capital' | 'landmark' | 'maritime' | 'custom' | 'country' | 'city' | 'research' | 'government';
+
 export interface GeoLocation {
   name: string;
   lat: number;
@@ -12,7 +14,7 @@ export interface GeoLocation {
   pitch?: number;
   heading?: number;
   formattedAddress?: string;
-  category?: 'military' | 'chokepoint' | 'capital' | 'landmark' | 'maritime' | 'custom';
+  category?: TargetCategory;
 }
 
 export const GODS_EYE_DEFAULT_URL = 'http://localhost:4173';
@@ -167,7 +169,7 @@ export interface ResolvedTarget {
   heading: number;
   formattedAddress: string;
   source: 'preset' | 'gods-eye-local' | 'nominatim' | 'photon';
-  category?: 'country' | 'city' | 'capital' | 'landmark' | 'chokepoint' | 'military' | 'custom';
+  category?: TargetCategory;
   details?: string;
   externalUrl: string;
   embedUrl: string;

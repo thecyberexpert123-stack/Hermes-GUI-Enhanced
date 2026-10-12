@@ -412,6 +412,14 @@ class AudioSynthesizer {
     }
   }
 
+  public playChirp() {
+    this.playClick(1200, 0.05);
+  }
+
+  public playMicroTick() {
+    this.playHover();
+  }
+
   // Sci-fi hover blip
   public playHover() {
     if (this.isMuted || this.profile === 'stealth') return;

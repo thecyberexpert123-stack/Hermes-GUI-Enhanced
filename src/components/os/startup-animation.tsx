@@ -73,7 +73,7 @@ export default function StartupAnimation({ onComplete }: StartupAnimationProps) 
         let newMetrics: Partial<RealBootTelemetry> = {};
 
         if (autoRes.status === 'fulfilled' && autoRes.value.ok) {
-          const autoData = await autoRes.json();
+          const autoData = await autoRes.value.json();
           const specs = autoData.diagnostics?.systemSpecs;
           if (specs) {
             newMetrics.gatewayPid = specs.gatewayPid || '336';

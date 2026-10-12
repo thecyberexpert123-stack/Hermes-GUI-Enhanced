@@ -61,7 +61,6 @@ export const AudioSpectrumBar: React.FC<AudioSpectrumBarProps> = ({
   const [isWindowsCaptured, setIsWindowsCaptured] = useState(false);
   const [isDeviceCaptured, setIsDeviceCaptured] = useState(false);
   const [captureError, setCaptureError] = useState<string | null>(null);
-  const [isTestingTone, setIsTestingTone] = useState(false);
 
   const animFrameRef = useRef<number | null>(null);
   const peaksRef = useRef<number[]>(Array.from({ length: 28 }, () => 10));
@@ -119,19 +118,6 @@ export const AudioSpectrumBar: React.FC<AudioSpectrumBarProps> = ({
     }
   };
 
-  const handleTestWslTone = async () => {
-    soundFx.playClick(1200);
-    setIsTestingTone(true);
-    try {
-      await fetch('/api/system/audio', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'test_tone', frequency: 750, duration: 0.5 }),
-      });
-    } catch {}
-    setTimeout(() => setIsTestingTone(false), 700);
-  };
-
   // Main Real-Time 60FPS Multi-Source Audio Analysis Loop
   useEffect(() => {
     let tick = 0;
@@ -155,7 +141,6 @@ export const AudioSpectrumBar: React.FC<AudioSpectrumBarProps> = ({
       let sysActive = false;
       let devActive = false;
       let synActive = false;
-      const wslActive = wslActiveRef.current;
 
       // 1. Probe Windows System Audio Analyser (Output)
       if (sysAnalyser && (sourceMode === 'all_win' || sourceMode === 'windows')) {
@@ -256,11 +241,7 @@ export const AudioSpectrumBar: React.FC<AudioSpectrumBarProps> = ({
 
       // Generate Oscilloscope Waveform points
       for (let w = 0; w < waveCount; w++) {
-        if (currentSource === 'WSL PULSE') {
-          const wslAmp = Math.max(4, Math.min(14, (wslDbRef.current + 60) / 4));
-          const synthSample = Math.sin(tick * 4 + w * 0.4) * wslAmp;
-          currentWave.push(16 + synthSample);
-        } else if (activeTime) {
+        if (activeTime) {
           const waveIndex = Math.min(63, Math.floor((w / waveCount) * 63));
           const sample = (activeTime[waveIndex] || 128) - 128;
           totalRms += sample * sample;
@@ -276,9 +257,7 @@ export const AudioSpectrumBar: React.FC<AudioSpectrumBarProps> = ({
       setWavePoints(currentWave);
 
       // Decibel meter calculation
-      if (currentSource === 'WSL PULSE') {
-        setDbLevel(wslDbRef.current.toFixed(1));
-      } else if (isAnyActive && activeTime) {
+      if (isAnyActive && activeTime) {
         const rms = Math.sqrt(totalRms / waveCount);
         const calculatedDb = Math.max(-48, Math.min(-0.2, 20 * Math.log10(Math.max(1, rms) / 128)));
         setDbLevel(calculatedDb.toFixed(1));
@@ -415,11 +394,11 @@ export const AudioSpectrumBar: React.FC<AudioSpectrumBarProps> = ({
               }}
               className={cn(
                 'flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-mono border transition-all cursor-pointer',
-                isWindowsCaptured || isDeviceCaptured || (isWslMonitorEnabled && wslStatus.active)
+                isWindowsCaptured || isDeviceCaptured
                   ? 'border-accent/60 bg-accent/15 text-accent shadow-[0_0_10px_hsl(var(--accent)/0.25)]'
                   : 'border-primary/25 bg-background/80 text-muted-foreground hover:text-accent hover:border-accent'
               )}
-              title="Configure Audio Sources (Windows System Audio, WSL PulseServer, Microphones)"
+              title="Configure Audio Sources (Windows System Audio, Hardware Microphones)"
             >
               <Radio size={9} className={isWindowsCaptured ? 'animate-pulse text-accent' : ''} />
               <span>SOURCES</span>
