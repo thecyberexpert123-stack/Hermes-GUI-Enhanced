@@ -57,12 +57,13 @@ import {
   DialogDescription,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Search, Zap, Layers, Command, Wrench } from 'lucide-react';
+import { Search, Zap, Layers, Command, Wrench, Monitor } from 'lucide-react';
 import { SlashCommandAutocomplete } from './slash-command-autocomplete';
 import { HermesCommandsDialog } from './hermes-commands-dialog';
 import { searchHermesCommands, type HermesCommand } from '@/lib/hermes-commands';
 import { GodsEyeModal } from './gods-eye-modal';
 import { AutoSetupModal } from './auto-setup-modal';
+import { WindowsKaliBridgeModal } from './windows-kali-bridge';
 import { buildGodsEyeUrl, GODS_EYE_PRESETS, cleanGeographicQuery, type GeoLocation } from '@/lib/godseye';
 import { transcribeSarvamAudio } from '@/lib/sarvam';
 
@@ -104,10 +105,36 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
   const [isCommandsDialogOpen, setIsCommandsDialogOpen] = useState(false);
   const [isGodsEyeOpen, setIsGodsEyeOpen] = useState(false);
   const [isAutoSetupOpen, setIsAutoSetupOpen] = useState(false);
+  const [isWindowsBridgeOpen, setIsWindowsBridgeOpen] = useState(false);
   const [godsEyeTarget, setGodsEyeTarget] = useState<string | undefined>(undefined);
   const [godsEyeLocation, setGodsEyeLocation] = useState<GeoLocation | null>(null);
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
   const { toast } = useToast();
+
+  const spawnKaliTerminal = async () => {
+    soundFx.playClick(1100);
+    toast({
+      title: "🚀 Spawning Kali Linux Terminal",
+      description: "Launching interactive Windows Terminal session on Windows host...",
+    });
+    try {
+      const res = await fetch('/api/system/windows-bridge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'launch-kali' }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        soundFx.playTaskSuccess();
+      }
+    } catch (e: any) {
+      toast({
+        title: "Terminal Spawner Notice",
+        description: e.message,
+        variant: "destructive",
+      });
+    }
+  };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -566,6 +593,54 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
       return;
     }
 
+    if (
+      queryLower === '/kali' ||
+      queryLower === '/wsl' ||
+      queryLower === 'launch kali' ||
+      queryLower === 'open kali' ||
+      queryLower === 'kali terminal' ||
+      queryLower === 'launch wsl kali' ||
+      queryLower === 'wsl kali' ||
+      queryLower === 'start kali'
+    ) {
+      spawnKaliTerminal();
+      setInput('');
+      return;
+    }
+
+    if (
+      queryLower === '/windows' ||
+      queryLower === '/win' ||
+      queryLower === 'windows app' ||
+      queryLower === 'windows launcher' ||
+      queryLower === 'open windows' ||
+      queryLower === 'windows host'
+    ) {
+      soundFx.playClick(1100);
+      setIsWindowsBridgeOpen(true);
+      setInput('');
+      return;
+    }
+
+    if (
+      queryLower === '/explorer' ||
+      queryLower === 'open explorer' ||
+      queryLower === 'windows explorer'
+    ) {
+      soundFx.playClick(1000);
+      fetch('/api/system/windows-bridge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'open-explorer' }),
+      });
+      toast({
+        title: "📂 Opening Windows Explorer",
+        description: "Launching Windows File Explorer at studio codebase...",
+      });
+      setInput('');
+      return;
+    }
+
     // Intercept God's Eye commands and natural language geographic requests
     const isGodsEyeSlash = queryText.match(/^\/(?:godseye|locate|geoview|satellite|osint-geo)(?:\s+(.*))?$/i);
     const geoQueryMatch = queryText.match(/^(?:where is|locate|find|show me(?:\s+the location of)?|now show(?: me)?|show the entire|show|fly to|take me to|navigate to|coordinates of|god'?s eye(?:\s+view)?(?: of| for)?)\s+([^?.!]+)/i);
@@ -907,6 +982,19 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
           >
             <Wrench size={13} className="text-emerald-400 animate-pulse" />
             <span className="hidden xl:inline text-[11px] font-bold">AUTO-SETUP</span>
+          </button>
+
+          {/* Windows Host & Kali Linux Multi-Window Launcher */}
+          <button
+            onClick={() => {
+              soundFx.playClick(1100);
+              setIsWindowsBridgeOpen(true);
+            }}
+            className="flex items-center gap-1.5 rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-2 sm:px-2.5 py-1.5 text-xs font-mono text-cyan-400 hover:bg-cyan-500/25 hover:border-cyan-400 hover:shadow-[0_0_15px_hsl(180_100%_50%/0.35)] transition-all shrink-0 cursor-pointer"
+            title="Open Windows Host & Kali Linux Orchestrator [W] / Spawn Kali Shell [K]"
+          >
+            <Monitor size={13} className="text-cyan-400" />
+            <span className="hidden xl:inline text-[11px] font-bold">WIN / KALI</span>
           </button>
 
           <ThemeSwitcher />
@@ -1332,6 +1420,13 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
       <AutoSetupModal
         isOpen={isAutoSetupOpen}
         onClose={() => setIsAutoSetupOpen(false)}
+      />
+
+      {/* Windows Host & Kali Linux Multi-Window Orchestrator */}
+      <WindowsKaliBridgeModal
+        isOpen={isWindowsBridgeOpen}
+        onOpenChange={setIsWindowsBridgeOpen}
+        onTriggerAutoSetup={() => setIsAutoSetupOpen(true)}
       />
     </div>
   );

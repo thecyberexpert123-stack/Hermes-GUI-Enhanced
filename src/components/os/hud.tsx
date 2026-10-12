@@ -25,9 +25,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { MessageSquare, Volume2, VolumeX, ShieldCheck, Cpu, Zap, Flame, Shield, Layers, Radio, Mic, Search, Disc, SlidersHorizontal, Globe, Wrench } from 'lucide-react';
+import { MessageSquare, Volume2, VolumeX, ShieldCheck, Cpu, Zap, Flame, Shield, Layers, Radio, Mic, Search, Disc, SlidersHorizontal, Globe, Wrench, Monitor, Terminal } from 'lucide-react';
 import { GodsEyeModal } from './gods-eye-modal';
 import { AutoSetupModal } from './auto-setup-modal';
+import { WindowsKaliBridgeModal } from './windows-kali-bridge';
 import { type AppMode } from '@/app/page';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -48,8 +49,34 @@ const HUD = ({ setMode, onSelectSession }: HUDProps) => {
   const [isHermesConfigOpen, setIsHermesConfigOpen] = useState(false);
   const [isGodsEyeOpen, setIsGodsEyeOpen] = useState(false);
   const [isAutoSetupOpen, setIsAutoSetupOpen] = useState(false);
+  const [isWindowsBridgeOpen, setIsWindowsBridgeOpen] = useState(false);
   const [godsEyeLocation, setGodsEyeLocation] = useState<GeoLocation | null>(null);
   const [godsEyeTarget, setGodsEyeTarget] = useState<string | undefined>(undefined);
+
+  const spawnKaliTerminal = useCallback(async () => {
+    soundFx.playClick(1100);
+    toast({
+      title: "🚀 Spawning Kali Linux Terminal",
+      description: "Launching interactive Windows Terminal session on Windows host...",
+    });
+    try {
+      const res = await fetch('/api/system/windows-bridge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'launch-kali' }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        soundFx.playTaskSuccess();
+      }
+    } catch (e: any) {
+      toast({
+        title: "Terminal Spawner Notice",
+        description: e.message,
+        variant: "destructive",
+      });
+    }
+  }, [toast]);
   const [activeJarvisTask, setActiveJarvisTask] = useState<{
     title: string;
     protocol: string;
@@ -102,11 +129,18 @@ const HUD = ({ setMode, onSelectSession }: HUDProps) => {
         e.preventDefault();
         soundFx.playClick(1100);
         setIsAutoSetupOpen((prev) => !prev);
+      } else if ((e.key === 'k' || e.key === 'K') && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        spawnKaliTerminal();
+      } else if (e.key === 'w' || e.key === 'W') {
+        e.preventDefault();
+        soundFx.playClick(1000);
+        setIsWindowsBridgeOpen((prev) => !prev);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [boostPerformance, setMode, toggleSound]);
+  }, [boostPerformance, setMode, toggleSound, spawnKaliTerminal]);
 
   // Global listener for 'hermes:open-godseye' custom event
   useEffect(() => {
@@ -393,6 +427,23 @@ const HUD = ({ setMode, onSelectSession }: HUDProps) => {
                   <Wrench size={14} className="text-emerald-400" />
                   <span>⚡ Autonomous Auto-Setup &amp; Self-Heal</span>
                 </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => spawnKaliTerminal()}
+                  className="cursor-pointer hover:bg-emerald-500/20 hover:text-emerald-400 flex items-center gap-2 py-2 text-emerald-400 font-bold"
+                >
+                  <Terminal size={14} className="text-emerald-400" />
+                  <span>🚀 Spawn Kali Linux Shell (Win Host) [K]</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    soundFx.playClick(1000);
+                    setIsWindowsBridgeOpen(true);
+                  }}
+                  className="cursor-pointer hover:bg-cyan-500/20 hover:text-cyan-400 flex items-center gap-2 py-2 text-cyan-400 font-bold"
+                >
+                  <Monitor size={14} className="text-cyan-400" />
+                  <span>🪟 Windows Host &amp; Subsystems [W]</span>
+                </DropdownMenuItem>
                 <DropdownMenuSeparator className="bg-primary/20" />
                 <DropdownMenuItem
                   onClick={() => runProtocol('Reactor Overclock & Memory Purge', 'PROTOCOL: HYPER_BOOST')}
@@ -453,6 +504,19 @@ const HUD = ({ setMode, onSelectSession }: HUDProps) => {
             >
               <Wrench size={13} className="text-emerald-400 animate-pulse" />
               <span className="hidden xl:inline text-xs font-bold">AUTO-SETUP</span>
+            </button>
+
+            {/* Windows Host & Kali Linux Multi-Window Launcher */}
+            <button
+              onClick={() => {
+                soundFx.playClick(1100);
+                setIsWindowsBridgeOpen(true);
+              }}
+              className="flex items-center gap-1.5 rounded-md border border-cyan-500/40 bg-cyan-500/15 px-2 sm:px-2.5 py-1.5 text-xs font-bold text-cyan-400 transition-all hover:bg-cyan-500/25 hover:border-cyan-400 hover:shadow-[0_0_18px_hsl(180_100%_50%/0.4)] shrink-0 cursor-pointer"
+              title="Open Windows Host & Kali Linux Orchestrator [W] / Press [K] to Spawn Kali Terminal"
+            >
+              <Monitor size={13} className="text-cyan-400" />
+              <span className="hidden xl:inline text-xs font-bold">WIN / KALI</span>
             </button>
 
             {/* Switch to Chat Mode */}
@@ -667,6 +731,13 @@ const HUD = ({ setMode, onSelectSession }: HUDProps) => {
       <AutoSetupModal
         isOpen={isAutoSetupOpen}
         onClose={() => setIsAutoSetupOpen(false)}
+      />
+
+      {/* Windows Host & Kali Linux Multi-Window Orchestrator */}
+      <WindowsKaliBridgeModal
+        isOpen={isWindowsBridgeOpen}
+        onOpenChange={setIsWindowsBridgeOpen}
+        onTriggerAutoSetup={() => setIsAutoSetupOpen(true)}
       />
     </div>
   );
