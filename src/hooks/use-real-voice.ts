@@ -2,7 +2,12 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { soundFx } from '@/lib/audio-synth';
-import { synthesizeSarvamSpeech, playSarvamAudio, stopSarvamAudio } from '@/lib/sarvam';
+import {
+  synthesizeSarvamSpeech,
+  playSarvamAudio,
+  stopSarvamAudio,
+  transcribeSarvamAudio,
+} from '@/lib/sarvam';
 
 export type VoiceMode = 'manual' | 'auto';
 export type VoiceStatus = 'idle' | 'monitoring' | 'listening' | 'thinking' | 'speaking' | 'error';
@@ -55,6 +60,11 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
   const recognitionRef = useRef<any>(null);
   const isRecognitionRunningRef = useRef(false);
   const isStoppingRef = useRef(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const isRecordingAudioRef = useRef(false);
+  const hasSpokenRef = useRef(false);
+
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -65,7 +75,8 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
   const restartTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const wakeWordTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const awokenTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  
+  const vadClipTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   const activeTranscriptRef = useRef('');
   const modeRef = useRef<VoiceMode>(mode);
   const statusRef = useRef<VoiceStatus>(status);
@@ -86,22 +97,22 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
     statusRef.current = status;
   }, [status]);
 
-  // Check Web Speech API availability
+  // Support check: Supported in both browser (Web Speech) and Electron (MediaDevices / MediaRecorder + Sarvam STT)
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const SpeechRecognition =
-        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (!SpeechRecognition) {
-        setIsSupported(false);
-      }
+      const hasMedia = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+      const hasSpeech = !!(
+        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+      );
+      setIsSupported(hasMedia || hasSpeech);
     }
   }, []);
 
   // Web Audio visualizer level loop (completely independent and non-blocking)
-  const startAudioAnalysis = useCallback(async () => {
+  const startAudioAnalysis = useCallback(async (): Promise<MediaStream | null> => {
     try {
-      if (typeof window === 'undefined' || !navigator.mediaDevices?.getUserMedia) return;
-      if (mediaStreamRef.current) return; // Already analyzing
+      if (typeof window === 'undefined' || !navigator.mediaDevices?.getUserMedia) return null;
+      if (mediaStreamRef.current) return mediaStreamRef.current; // Already analyzing
 
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -112,59 +123,68 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
       });
       if (unmountedRef.current) {
         stream.getTracks().forEach((t) => t.stop());
-        return;
+        return null;
       }
       mediaStreamRef.current = stream;
 
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      if (!AudioCtx) return;
-      const audioCtx = new AudioCtx();
-      audioContextRef.current = audioCtx;
+      if (AudioCtx) {
+        const audioCtx = new AudioCtx();
+        audioContextRef.current = audioCtx;
 
-      const analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 128;
-      analyser.smoothingTimeConstant = 0.75;
-      analyserRef.current = analyser;
+        const analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 128;
+        analyser.smoothingTimeConstant = 0.75;
+        analyserRef.current = analyser;
 
-      const source = audioCtx.createMediaStreamSource(stream);
-      source.connect(analyser);
+        const source = audioCtx.createMediaStreamSource(stream);
+        source.connect(analyser);
 
-      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
 
-      const updateMeter = () => {
-        if (!analyserRef.current || unmountedRef.current) return;
-        analyserRef.current.getByteFrequencyData(dataArray);
+        const updateMeter = () => {
+          if (!analyserRef.current || unmountedRef.current) return;
+          analyserRef.current.getByteFrequencyData(dataArray);
 
-        let sum = 0;
-        let peakVal = 0;
-        const bars: number[] = [];
-        const step = Math.max(1, Math.floor(dataArray.length / 24));
+          let sum = 0;
+          let peakVal = 0;
+          const bars: number[] = [];
+          const step = Math.max(1, Math.floor(dataArray.length / 24));
 
-        for (let i = 0; i < 24; i++) {
-          const val = dataArray[i * step] || 0;
-          if (val > peakVal) peakVal = val;
-          bars.push(Math.max(4, Math.round((val / 255) * 100)));
-        }
+          for (let i = 0; i < 24; i++) {
+            const val = dataArray[i * step] || 0;
+            if (val > peakVal) peakVal = val;
+            bars.push(Math.max(4, Math.round((val / 255) * 100)));
+          }
 
-        for (let i = 0; i < dataArray.length; i++) {
-          sum += dataArray[i];
-        }
+          for (let i = 0; i < dataArray.length; i++) {
+            sum += dataArray[i];
+          }
 
-        const avg = sum / dataArray.length / 255;
-        const active = avg > 0.02 || peakVal > 18;
-        const db = avg > 0.002 ? Math.max(-54, Math.min(-0.5, 20 * Math.log10(avg * 2.2))) : -54;
+          const avg = sum / dataArray.length / 255;
+          const active = avg > 0.02 || peakVal > 18;
+          const db =
+            avg > 0.002 ? Math.max(-54, Math.min(-0.5, 20 * Math.log10(avg * 2.2))) : -54;
 
-        setAudioLevel(avg);
-        setFrequencyBars(bars);
-        setInputDb(db.toFixed(1));
-        setIsVoiceActive(active);
+          setAudioLevel(avg);
+          setFrequencyBars(bars);
+          setInputDb(db.toFixed(1));
+          setIsVoiceActive(active);
 
-        animationFrameRef.current = requestAnimationFrame(updateMeter);
-      };
+          // Track voice presence for silence detection
+          if (active && statusRef.current === 'listening') {
+            hasSpokenRef.current = true;
+          }
 
-      updateMeter();
-    } catch {
-      // Audio visualization fallback - Web Speech API will independently handle recording
+          animationFrameRef.current = requestAnimationFrame(updateMeter);
+        };
+
+        updateMeter();
+      }
+      return stream;
+    } catch (err: any) {
+      console.warn('Microphone stream error:', err);
+      return null;
     }
   }, []);
 
@@ -192,6 +212,13 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
   // Safe SpeechRecognition cleanup helper
   const safelyDestroyRecognition = useCallback((): Promise<void> => {
     return new Promise((resolve) => {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+        try {
+          mediaRecorderRef.current.stop();
+        } catch {}
+      }
+      mediaRecorderRef.current = null;
+
       const rec = recognitionRef.current;
       if (!rec) {
         resolve();
@@ -207,7 +234,6 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
       } catch {}
       recognitionRef.current = null;
       isRecognitionRunningRef.current = false;
-      // Short delay to give Chromium audio engine time to flush IPC handles
       setTimeout(() => {
         isStoppingRef.current = false;
         resolve();
@@ -215,17 +241,17 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
     });
   }, []);
 
-  // SpeechSynthesis talk-back function with Chrome GC bug guard & watchdog
+  // SpeechSynthesis talk-back function with Sarvam Neural TTS + Web Speech fallback
   const speakText = useCallback(
     (textToSpeak: string, onEnd?: () => void) => {
-      if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      if (typeof window === 'undefined') {
         if (onEnd) onEnd();
         return;
       }
 
       if (synthWatchdogRef.current) clearTimeout(synthWatchdogRef.current);
       stopSarvamAudio();
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
       }
 
@@ -259,7 +285,7 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
         }
       };
 
-      // 1. Attempt Sarvam Neural TTS (Bulbul:v1)
+      // 1. Attempt Sarvam Neural TTS (Bulbul)
       synthesizeSarvamSpeech(cleanText)
         .then(({ audioUrl }) => {
           setStatus('speaking');
@@ -268,7 +294,7 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
         })
         .catch(() => {
           // 2. Fallback to Web Speech Synthesis API
-          if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+          if (!('speechSynthesis' in window)) {
             finishSpeech();
             return;
           }
@@ -417,21 +443,44 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
     [sessionId, skipApiQuery, onTranscriptReady, autoSpeakResponse, speakText, onQueryComplete, safelyDestroyRecognition]
   );
 
+  // Stop listening manually (flush MediaRecorder and trigger transcription/query)
+  const stopListening = useCallback(() => {
+    if (silenceTimeoutRef.current) {
+      clearTimeout(silenceTimeoutRef.current);
+      silenceTimeoutRef.current = null;
+    }
+
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch {}
+    }
+
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      try {
+        mediaRecorderRef.current.stop();
+      } catch {}
+    } else {
+      stopAudioAnalysis();
+      if (activeTranscriptRef.current && !hasSubmittedRef.current) {
+        hasSubmittedRef.current = true;
+        sendVoiceQuery(activeTranscriptRef.current);
+      } else if (!activeTranscriptRef.current) {
+        setStatus('idle');
+      }
+    }
+  }, [sendVoiceQuery, stopAudioAnalysis]);
+
   // Continuous ambient monitoring for Wake-Word "Hermes" (Automatic Mode)
   const startMonitoring = useCallback(async () => {
     if (typeof window === 'undefined' || unmountedRef.current) return;
 
-    const SpeechRecognition =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-
-    if (!SpeechRecognition) {
-      setIsSupported(false);
-      setStatus('idle');
-      return;
-    }
-
     // Don't start monitoring if currently speaking or thinking
-    if (isProcessingRef.current || statusRef.current === 'thinking' || statusRef.current === 'speaking') {
+    if (
+      isProcessingRef.current ||
+      statusRef.current === 'thinking' ||
+      statusRef.current === 'speaking'
+    ) {
       return;
     }
 
@@ -446,67 +495,96 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
     setIsWakeWordDetected(false);
     setError(null);
 
-    startAudioAnalysis();
+    const stream = await startAudioAnalysis();
+    if (!stream) {
+      setError('Microphone access unavailable');
+      setStatus('idle');
+      return;
+    }
 
-    try {
-      const recognition = new SpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = 'en-US';
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
-      recognition.onstart = () => {
-        isRecognitionRunningRef.current = true;
-        setStatus('monitoring');
-        retryCountRef.current = 0;
-      };
+    // If Web Speech API is available (e.g. Chrome browser), use continuous recognition
+    if (SpeechRecognition) {
+      try {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = 'en-US';
 
-      recognition.onresult = (event: any) => {
-        let finalStr = '';
-        let interimStr = '';
+        recognition.onstart = () => {
+          isRecognitionRunningRef.current = true;
+          setStatus('monitoring');
+          retryCountRef.current = 0;
+        };
 
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            finalStr += event.results[i][0].transcript;
-          } else {
-            interimStr += event.results[i][0].transcript;
+        recognition.onresult = (event: any) => {
+          let finalStr = '';
+          let interimStr = '';
+
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+              finalStr += event.results[i][0].transcript;
+            } else {
+              interimStr += event.results[i][0].transcript;
+            }
           }
-        }
 
-        const rawSpoken = (finalStr || interimStr).trim();
-        if (!rawSpoken) return;
+          const rawSpoken = (finalStr || interimStr).trim();
+          if (!rawSpoken) return;
 
-        // 1. If currently in standby monitoring, check for wake-word "Hermes"
-        if (!isAwokenRef.current) {
-          if (WAKE_WORD_REGEX.test(rawSpoken)) {
-            isAwokenRef.current = true;
-            setIsWakeWordDetected(true);
-            soundFx.playWakeWordChime();
-            setStatus('listening');
+          // 1. If currently in standby monitoring, check for wake-word "Hermes"
+          if (!isAwokenRef.current) {
+            if (WAKE_WORD_REGEX.test(rawSpoken)) {
+              isAwokenRef.current = true;
+              setIsWakeWordDetected(true);
+              soundFx.playWakeWordChime();
+              setStatus('listening');
 
-            if (wakeWordTimeoutRef.current) clearTimeout(wakeWordTimeoutRef.current);
-            wakeWordTimeoutRef.current = setTimeout(() => {
-              setIsWakeWordDetected(false);
-            }, 3000);
-
-            // Awoken timeout: If no follow-up command spoken in 8 seconds, revert to monitoring
-            if (awokenTimeoutRef.current) clearTimeout(awokenTimeoutRef.current);
-            awokenTimeoutRef.current = setTimeout(() => {
-              if (isAwokenRef.current && statusRef.current === 'listening') {
-                isAwokenRef.current = false;
+              if (wakeWordTimeoutRef.current) clearTimeout(wakeWordTimeoutRef.current);
+              wakeWordTimeoutRef.current = setTimeout(() => {
                 setIsWakeWordDetected(false);
-                setStatus('monitoring');
-                setTranscript('');
-                setInterimTranscript('');
-                activeTranscriptRef.current = '';
-              }
-            }, 8000);
+              }, 3000);
 
-            // Check if there is an immediate command chained right after the wake word
-            const commandAfterWake = rawSpoken.replace(WAKE_WORD_REGEX, '').trim();
-            if (commandAfterWake.length > 2) {
               if (awokenTimeoutRef.current) clearTimeout(awokenTimeoutRef.current);
-              activeTranscriptRef.current = commandAfterWake;
-              setTranscript(commandAfterWake);
+              awokenTimeoutRef.current = setTimeout(() => {
+                if (isAwokenRef.current && statusRef.current === 'listening') {
+                  isAwokenRef.current = false;
+                  setIsWakeWordDetected(false);
+                  setStatus('monitoring');
+                  setTranscript('');
+                  setInterimTranscript('');
+                  activeTranscriptRef.current = '';
+                }
+              }, 8000);
+
+              const commandAfterWake = rawSpoken.replace(WAKE_WORD_REGEX, '').trim();
+              if (commandAfterWake.length > 2) {
+                if (awokenTimeoutRef.current) clearTimeout(awokenTimeoutRef.current);
+                activeTranscriptRef.current = commandAfterWake;
+                setTranscript(commandAfterWake);
+
+                if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
+                silenceTimeoutRef.current = setTimeout(() => {
+                  if (activeTranscriptRef.current && !hasSubmittedRef.current) {
+                    hasSubmittedRef.current = true;
+                    sendVoiceQuery(activeTranscriptRef.current);
+                  }
+                }, 2200);
+              }
+            }
+            return;
+          }
+
+          // 2. Already awoken, capture spoken command
+          if (isAwokenRef.current) {
+            const commandText = rawSpoken.replace(WAKE_WORD_REGEX, '').trim();
+            if (commandText) {
+              if (awokenTimeoutRef.current) clearTimeout(awokenTimeoutRef.current);
+              activeTranscriptRef.current = commandText;
+              setTranscript(commandText);
+              setInterimTranscript(interimStr);
 
               if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
               silenceTimeoutRef.current = setTimeout(() => {
@@ -517,98 +595,60 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
               }, 2200);
             }
           }
-          return;
-        }
+        };
 
-        // 2. Already awoken, capture spoken command
-        if (isAwokenRef.current) {
-          const commandText = rawSpoken.replace(WAKE_WORD_REGEX, '').trim();
-          if (commandText) {
-            if (awokenTimeoutRef.current) clearTimeout(awokenTimeoutRef.current);
-            activeTranscriptRef.current = commandText;
-            setTranscript(commandText);
-            setInterimTranscript(interimStr);
-
-            if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
-            silenceTimeoutRef.current = setTimeout(() => {
-              if (activeTranscriptRef.current && !hasSubmittedRef.current) {
-                hasSubmittedRef.current = true;
-                sendVoiceQuery(activeTranscriptRef.current);
-              }
-            }, 2200);
+        recognition.onerror = (event: any) => {
+          isRecognitionRunningRef.current = false;
+          const errType = event.error;
+          if (errType === 'not-allowed' || errType === 'service-not-allowed') {
+            setError('Microphone access denied by browser');
+            setStatus('idle');
           }
-        }
-      };
+        };
 
-      recognition.onerror = (event: any) => {
-        isRecognitionRunningRef.current = false;
-        const errType = event.error;
-
-        if (errType === 'not-allowed' || errType === 'service-not-allowed') {
-          setError('Microphone access denied by browser');
-          setStatus('idle');
-          return;
-        }
-
-        if (errType === 'no-speech') {
-          // Normal ambient silence in auto mode; do not consider this fatal
-          return;
-        }
-
-        if (errType === 'network') {
-          // Network hiccup with Google speech servers; will retry on onend with backoff
-          return;
-        }
-      };
-
-      recognition.onend = () => {
-        isRecognitionRunningRef.current = false;
-
-        // In auto mode, if we haven't transitioned to thinking/speaking, keep monitoring alive
-        if (
-          modeRef.current === 'auto' &&
-          !isProcessingRef.current &&
-          !unmountedRef.current &&
-          statusRef.current !== 'thinking' &&
-          statusRef.current !== 'speaking'
-        ) {
-          // If user was awoken and spoke words that were not yet submitted, don't drop them
-          if (activeTranscriptRef.current && !hasSubmittedRef.current && isAwokenRef.current) {
-            hasSubmittedRef.current = true;
-            sendVoiceQuery(activeTranscriptRef.current);
-            return;
-          }
-
-          if (restartTimeoutRef.current) clearTimeout(restartTimeoutRef.current);
-          const backoff = Math.min(1200, 200 + retryCountRef.current * 200);
-          retryCountRef.current += 1;
-
-          restartTimeoutRef.current = setTimeout(() => {
-            if (modeRef.current === 'auto' && !isProcessingRef.current && !unmountedRef.current) {
-              startMonitoring();
+        recognition.onend = () => {
+          isRecognitionRunningRef.current = false;
+          if (
+            modeRef.current === 'auto' &&
+            !isProcessingRef.current &&
+            !unmountedRef.current &&
+            statusRef.current !== 'thinking' &&
+            statusRef.current !== 'speaking'
+          ) {
+            if (activeTranscriptRef.current && !hasSubmittedRef.current && isAwokenRef.current) {
+              hasSubmittedRef.current = true;
+              sendVoiceQuery(activeTranscriptRef.current);
+              return;
             }
-          }, backoff);
-        }
-      };
 
-      recognitionRef.current = recognition;
-      recognition.start();
-      setStatus('monitoring');
-    } catch (err: any) {
-      isRecognitionRunningRef.current = false;
-      // If recognition was already starting, retry after a moment
-      if (modeRef.current === 'auto' && !unmountedRef.current) {
-        if (restartTimeoutRef.current) clearTimeout(restartTimeoutRef.current);
-        restartTimeoutRef.current = setTimeout(startMonitoring, 400);
-      } else {
-        setStatus('idle');
+            if (restartTimeoutRef.current) clearTimeout(restartTimeoutRef.current);
+            const backoff = Math.min(1200, 200 + retryCountRef.current * 200);
+            retryCountRef.current += 1;
+
+            restartTimeoutRef.current = setTimeout(() => {
+              if (modeRef.current === 'auto' && !isProcessingRef.current && !unmountedRef.current) {
+                startMonitoring();
+              }
+            }, backoff);
+          }
+        };
+
+        recognitionRef.current = recognition;
+        recognition.start();
+        setStatus('monitoring');
+        return;
+      } catch (err: any) {
+        console.warn('SpeechRecognition monitoring notice:', err);
       }
     }
+
+    // In Electron without SpeechRecognition: set to monitoring with live microphone dB visualization
+    setStatus('monitoring');
   }, [sendVoiceQuery, startAudioAnalysis, safelyDestroyRecognition]);
 
   startMonitoringRef.current = startMonitoring;
 
-  // Manual listening mode (push-to-talk with continuous capture)
+  // Manual listening mode (Works everywhere: Electron MediaRecorder + Sarvam STT & Browser SpeechRecognition)
   const startListening = useCallback(async () => {
     if (typeof window === 'undefined' || unmountedRef.current) return;
 
@@ -620,132 +660,171 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
     isAwokenRef.current = true;
     hasSubmittedRef.current = false;
     isProcessingRef.current = false;
+    hasSpokenRef.current = false;
+    audioChunksRef.current = [];
 
     soundFx.playClick(1000);
-    startAudioAnalysis();
 
-    const SpeechRecognition =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-
-    if (!SpeechRecognition) {
-      setIsSupported(false);
-      setError('Web Speech API not supported in this browser');
+    // 1. Start audio visualization loop (captures microphone MediaStream)
+    const stream = await startAudioAnalysis();
+    if (!stream) {
+      setError('Could not access microphone');
       setStatus('idle');
       return;
     }
 
-    await safelyDestroyRecognition();
+    setStatus('listening');
 
+    // 2. Initialize MediaRecorder on the microphone stream (universal support in Electron & Browsers)
     try {
-      const recognition = new SpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = 'en-US';
+      let mimeType = '';
+      if (typeof MediaRecorder !== 'undefined') {
+        if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+          mimeType = 'audio/webm;codecs=opus';
+        } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+          mimeType = 'audio/webm';
+        } else if (MediaRecorder.isTypeSupported('audio/ogg')) {
+          mimeType = 'audio/ogg';
+        }
 
-      recognition.onstart = () => {
-        isRecognitionRunningRef.current = true;
-        setStatus('listening');
-      };
+        const recorder = mimeType
+          ? new MediaRecorder(stream, { mimeType })
+          : new MediaRecorder(stream);
+        audioChunksRef.current = [];
 
-      recognition.onresult = (event: any) => {
-        let finalStr = '';
-        let interimStr = '';
-
-        for (let i = event.results.length - 1; i >= 0; i--) {
-          if (event.results[i].isFinal) {
-            finalStr = event.results[i][0].transcript + ' ' + finalStr;
-          } else {
-            interimStr = event.results[i][0].transcript + ' ' + interimStr;
+        recorder.ondataavailable = (event) => {
+          if (event.data && event.data.size > 0) {
+            audioChunksRef.current.push(event.data);
           }
-        }
+        };
 
-        const currentText = (finalStr || interimStr).trim();
-        if (currentText) {
-          activeTranscriptRef.current = currentText;
-          setTranscript(currentText);
-          setInterimTranscript(interimStr);
-        }
+        recorder.onstop = async () => {
+          isRecordingAudioRef.current = false;
+          if (hasSubmittedRef.current) return;
 
-        // Automatic silence trigger after 2600ms of user pause
-        if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
-        silenceTimeoutRef.current = setTimeout(() => {
-          if (activeTranscriptRef.current && !hasSubmittedRef.current) {
+          const chunks = audioChunksRef.current;
+          audioChunksRef.current = [];
+
+          // If browser speech recognition already generated a solid transcript, prioritize it
+          if (activeTranscriptRef.current.trim()) {
             hasSubmittedRef.current = true;
-            try {
-              recognition.stop();
-            } catch {}
             stopAudioAnalysis();
-            sendVoiceQuery(activeTranscriptRef.current);
+            sendVoiceQuery(activeTranscriptRef.current.trim());
+            return;
           }
-        }, 2600);
-      };
 
-      recognition.onerror = (event: any) => {
-        isRecognitionRunningRef.current = false;
-        const errType = event.error;
+          if (chunks.length === 0) {
+            stopAudioAnalysis();
+            setStatus('idle');
+            return;
+          }
 
-        if (errType === 'not-allowed' || errType === 'service-not-allowed') {
-          setError('Microphone access denied by browser');
-          setStatus('idle');
-          stopAudioAnalysis();
-          return;
-        }
+          const recordedBlob = new Blob(chunks, {
+            type: recorder.mimeType || 'audio/webm',
+          });
 
-        if (errType === 'no-speech') {
-          // If user hasn't spoken yet, don't abort immediately unless manually stopped
-          return;
-        }
-      };
+          if (recordedBlob.size < 600) {
+            stopAudioAnalysis();
+            setStatus('idle');
+            return;
+          }
 
-      recognition.onend = () => {
-        isRecognitionRunningRef.current = false;
-        stopAudioAnalysis();
+          // Transcribe using Sarvam Neural STT (Saaras:v3)
+          try {
+            setStatus('thinking');
+            setInterimTranscript('Transcribing audio via Sarvam Saaras AI...');
+            const sttResult = await transcribeSarvamAudio(recordedBlob);
+            const clean = sttResult.trim();
+            stopAudioAnalysis();
 
-        if (!hasSubmittedRef.current) {
-          const finalText = activeTranscriptRef.current.trim();
-          if (finalText) {
-            hasSubmittedRef.current = true;
-            sendVoiceQuery(finalText);
-          } else {
+            if (clean) {
+              hasSubmittedRef.current = true;
+              activeTranscriptRef.current = clean;
+              setTranscript(clean);
+              setInterimTranscript('');
+              sendVoiceQuery(clean);
+            } else {
+              setInterimTranscript('');
+              setStatus('idle');
+            }
+          } catch (sttErr: any) {
+            console.warn('Sarvam STT fallback notice:', sttErr);
+            stopAudioAnalysis();
+            setInterimTranscript('');
+            setError(sttErr.message || 'Speech-to-text failed');
             setStatus('idle');
           }
-        }
-      };
+        };
 
-      recognitionRef.current = recognition;
-      recognition.start();
-      setStatus('listening');
-    } catch (err: any) {
-      console.warn('Manual speech recognition start notice:', err.message);
-      stopAudioAnalysis();
-      setError('Could not access microphone');
-      setStatus('idle');
+        mediaRecorderRef.current = recorder;
+        recorder.start(200); // chunk every 200ms
+        isRecordingAudioRef.current = true;
+      }
+    } catch (recErr: any) {
+      console.warn('MediaRecorder init notice:', recErr);
     }
-  }, [sendVoiceQuery, startAudioAnalysis, stopAudioAnalysis, safelyDestroyRecognition]);
+
+    // 3. Optional: Concurrently run Web Speech API if supported for live interim words
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (SpeechRecognition) {
+      try {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = 'en-US';
+
+        recognition.onstart = () => {
+          isRecognitionRunningRef.current = true;
+        };
+
+        recognition.onresult = (event: any) => {
+          let finalStr = '';
+          let interimStr = '';
+
+          for (let i = event.results.length - 1; i >= 0; i--) {
+            if (event.results[i].isFinal) {
+              finalStr = event.results[i][0].transcript + ' ' + finalStr;
+            } else {
+              interimStr = event.results[i][0].transcript + ' ' + interimStr;
+            }
+          }
+
+          const currentText = (finalStr || interimStr).trim();
+          if (currentText) {
+            hasSpokenRef.current = true;
+            activeTranscriptRef.current = currentText;
+            setTranscript(currentText);
+            setInterimTranscript(interimStr);
+          }
+
+          // Automatic silence trigger after 2400ms of user pause
+          if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
+          silenceTimeoutRef.current = setTimeout(() => {
+            if (activeTranscriptRef.current && !hasSubmittedRef.current) {
+              stopListening();
+            }
+          }, 2400);
+        };
+
+        recognition.onerror = () => {
+          isRecognitionRunningRef.current = false;
+        };
+
+        recognition.onend = () => {
+          isRecognitionRunningRef.current = false;
+        };
+
+        recognitionRef.current = recognition;
+        recognition.start();
+      } catch (err: any) {
+        console.warn('SpeechRecognition start notice:', err.message);
+      }
+    }
+  }, [sendVoiceQuery, startAudioAnalysis, stopAudioAnalysis, stopListening]);
 
   startListeningRef.current = startListening;
-
-  // Stop listening manually (Immediately submit current transcript)
-  const stopListening = useCallback(() => {
-    if (silenceTimeoutRef.current) {
-      clearTimeout(silenceTimeoutRef.current);
-      silenceTimeoutRef.current = null;
-    }
-
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch {}
-    }
-    stopAudioAnalysis();
-
-    if (activeTranscriptRef.current && !hasSubmittedRef.current) {
-      hasSubmittedRef.current = true;
-      sendVoiceQuery(activeTranscriptRef.current);
-    } else if (!activeTranscriptRef.current) {
-      setStatus('idle');
-    }
-  }, [sendVoiceQuery, stopAudioAnalysis]);
 
   // Mode switcher (Manual <-> Auto)
   const setMode = useCallback(
@@ -783,11 +862,21 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
     if (awokenTimeoutRef.current) clearTimeout(awokenTimeoutRef.current);
     if (synthWatchdogRef.current) clearTimeout(synthWatchdogRef.current);
     if (thinkingWatchdogRef.current) clearTimeout(thinkingWatchdogRef.current);
+    if (vadClipTimeoutRef.current) clearTimeout(vadClipTimeoutRef.current);
 
     isProcessingRef.current = false;
     hasSubmittedRef.current = false;
     isAwokenRef.current = false;
     activeTranscriptRef.current = '';
+    audioChunksRef.current = [];
+
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      try {
+        mediaRecorderRef.current.onstop = null;
+        mediaRecorderRef.current.stop();
+      } catch {}
+    }
+    mediaRecorderRef.current = null;
 
     if (recognitionRef.current) {
       try {

@@ -27,7 +27,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Audio file is required in formData' }, { status: 400 });
     }
 
-    const fileName = (file instanceof File && file.name) ? file.name : (file.type?.includes('webm') ? 'audio.webm' : 'audio.wav');
+    const mimeType = (file as Blob).type || '';
+    let ext = 'wav';
+    if (mimeType.includes('webm')) ext = 'webm';
+    else if (mimeType.includes('ogg')) ext = 'ogg';
+    else if (mimeType.includes('mp4') || mimeType.includes('m4a')) ext = 'm4a';
+    else if (mimeType.includes('mp3') || mimeType.includes('mpeg')) ext = 'mp3';
+
+    const fileName = (file instanceof File && file.name && file.name.includes('.')) 
+      ? file.name 
+      : `audio.${ext}`;
     const sarvamFormData = new FormData();
     sarvamFormData.append('file', file, fileName);
     sarvamFormData.append('model', model);

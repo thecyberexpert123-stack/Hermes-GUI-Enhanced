@@ -308,7 +308,7 @@ const HUD = ({ setMode, onSelectSession }: HUDProps) => {
         {/* Top Header Toolbar */}
         <header className="w-full flex items-center justify-between gap-1.5 sm:gap-3 pb-1.5 border-b border-primary/15 shrink-0 relative z-30">
           {/* Left: Clock & Subsystem Status */}
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0 min-w-fit">
             <Clock />
             <div className="hidden 2xl:flex items-center gap-2 rounded-md border border-primary/20 bg-background/50 px-2.5 py-1 text-xs text-muted-foreground backdrop-blur-sm">
               <ShieldCheck size={14} className="text-emerald-400" />
@@ -330,7 +330,7 @@ const HUD = ({ setMode, onSelectSession }: HUDProps) => {
           </div>
 
           {/* Right: Streamlined Cyber Action Toolbar */}
-          <div className="flex items-center gap-1 sm:gap-1.5 md:gap-2 shrink-0 max-w-full py-0.5">
+          <div className="flex items-center gap-1 sm:gap-1.5 md:gap-2 shrink-0 max-w-full py-0.5 overflow-x-auto scrollbar-none">
             {/* Quick J.A.R.V.I.S. Command Palette Launcher */}
             <button
               onClick={() => {
@@ -342,7 +342,7 @@ const HUD = ({ setMode, onSelectSession }: HUDProps) => {
             >
               <Search size={13} className="text-primary" />
               <span className="hidden 2xl:inline text-[11px]">COMMANDS</span>
-              <kbd className="hidden sm:inline-block px-1 py-0.2 text-[9px] bg-primary/10 border border-primary/20 rounded text-accent font-bold">
+              <kbd className="hidden 2xl:inline-block px-1 py-0.2 text-[9px] bg-primary/10 border border-primary/20 rounded text-accent font-bold">
                 ⌘K
               </kbd>
             </button>
@@ -490,7 +490,7 @@ const HUD = ({ setMode, onSelectSession }: HUDProps) => {
               title="Open God's Eye View 3D Globe & OSINT Satellite Console (~/gods-eye-view) [G]"
             >
               <Globe size={13} className="text-accent animate-spin" style={{ animationDuration: '20s' }} />
-              <span className="hidden xl:inline text-xs font-bold">GOD&apos;S EYE</span>
+              <span className="hidden 2xl:inline text-xs font-bold">GOD&apos;S EYE</span>
             </button>
 
             {/* Autonomous Setup & Self-Healing Launcher */}
@@ -503,7 +503,7 @@ const HUD = ({ setMode, onSelectSession }: HUDProps) => {
               title="Open Autonomous System Diagnostics & Self-Healing Center [A]"
             >
               <Wrench size={13} className="text-emerald-400 animate-pulse" />
-              <span className="hidden xl:inline text-xs font-bold">AUTO-SETUP</span>
+              <span className="hidden 2xl:inline text-xs font-bold">AUTO-SETUP</span>
             </button>
 
             {/* Windows Host & Kali Linux Multi-Window Launcher */}
@@ -516,7 +516,7 @@ const HUD = ({ setMode, onSelectSession }: HUDProps) => {
               title="Open Windows Host & Kali Linux Orchestrator [W] / Press [K] to Spawn Kali Terminal"
             >
               <Monitor size={13} className="text-cyan-400" />
-              <span className="hidden xl:inline text-xs font-bold">WIN / KALI</span>
+              <span className="hidden 2xl:inline text-xs font-bold">WIN / KALI</span>
             </button>
 
             {/* Switch to Chat Mode */}

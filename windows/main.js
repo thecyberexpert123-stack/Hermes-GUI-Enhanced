@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, Tray, shell } = require('electron');
+const { app, BrowserWindow, Menu, Tray, shell, session } = require('electron');
 const path = require('path');
 const { exec, spawn } = require('child_process');
 const http = require('http');
@@ -154,6 +154,13 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+    if (permission === 'media') {
+      return callback(true);
+    }
+    callback(true);
+  });
+
   createWindow();
 
   app.on('activate', () => {

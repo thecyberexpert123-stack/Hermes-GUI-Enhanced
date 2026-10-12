@@ -191,7 +191,7 @@ const VoiceHUD = ({ closeDialog, onOpenChatWithSession }: VoiceHUDProps) => {
           )}
         >
           <Radio size={13} className={mode === 'auto' ? 'text-accent animate-pulse' : 'opacity-60'} />
-          <span>AUTO // "HERMES"</span>
+          <span className="font-sans font-bold tracking-wider">AUTO // &quot;HERMES&quot;</span>
         </button>
       </div>
 
@@ -202,7 +202,7 @@ const VoiceHUD = ({ closeDialog, onOpenChatWithSession }: VoiceHUDProps) => {
             <>
               <Sparkles size={11} className="text-accent animate-spin-slow" />
               <span className="text-accent font-semibold">WAKE-WORD ACTIVE:</span>
-              <span className="text-foreground tracking-wider font-bold">"HERMES"</span>
+              <span className="text-foreground tracking-wider font-bold font-sans">&quot;HERMES&quot;</span>
             </>
           ) : (
             <>
@@ -379,20 +379,20 @@ const VoiceHUD = ({ closeDialog, onOpenChatWithSession }: VoiceHUDProps) => {
       {/* Dynamic Status Readout Label */}
       <div className={cn('text-center my-1 font-mono text-[11px] sm:text-xs tracking-widest shrink-0', orbitron.className)}>
         {isWakeWordDetected ? (
-          <span className="text-accent font-bold animate-pulse">⚡ "HERMES" AWOKEN! RECORDING COMMAND...</span>
+          <span className="text-accent font-bold animate-pulse font-sans">⚡ &quot;HERMES&quot; AWOKEN! RECORDING COMMAND...</span>
         ) : status === 'listening' ? (
-          <span className="text-destructive animate-pulse">● RECORDING... (SPEAK YOUR COMMAND)</span>
+          <span className="text-destructive font-bold animate-pulse font-sans">● RECORDING AUDIO... (CLICK TO STOP &amp; EXECUTE)</span>
         ) : status === 'thinking' ? (
-          <span className="text-accent animate-pulse">⚡ INFERENCE RUNNING IN WSL AGENT...</span>
+          <span className="text-accent font-bold animate-pulse font-sans">⚡ TRANSCRIBING &amp; RUNNING INFERENCE IN WSL...</span>
         ) : status === 'speaking' ? (
-          <span className="text-emerald-400">🔊 HERMES RESPONDING...</span>
+          <span className="text-emerald-400 font-bold font-sans">🔊 HERMES RESPONDING...</span>
         ) : status === 'monitoring' ? (
-          <span className="text-accent flex items-center justify-center gap-1.5">
+          <span className="text-accent flex items-center justify-center gap-1.5 font-sans">
             <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
-            <span>LISTENING FOR "HERMES"... (SAY WAKE-WORD)</span>
+            <span>LISTENING FOR &quot;HERMES&quot;... (SAY WAKE-WORD)</span>
           </span>
         ) : (
-          <span className="text-primary/80">READY // CLICK MIC OR TYPE BELOW</span>
+          <span className="text-primary/80 font-mono">READY // CLICK MIC OR TYPE BELOW</span>
         )}
       </div>
 
