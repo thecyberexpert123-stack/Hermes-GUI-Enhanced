@@ -119,13 +119,13 @@ export async function POST(req: NextRequest) {
       }
 
       case 'launch-studio-app': {
-        // Launch Studio in dedicated borderless app window
-        const winCmd = 'start "" msedge.exe --app="http://localhost:3001" --window-size=1680,1000';
-        await execOnWindows(winCmd).catch(() => execOnWindows('start "" http://localhost:3001'));
+        // Launch independent standalone desktop application (NO web browser)
+        const appCmd = 'cd /d C:\\Users\\anish\\Hermes-Agent-OS && start "" "C:\\Users\\anish\\Hermes-Agent-OS\\Hermes-Agent-OS.exe"';
+        await execOnWindows(appCmd).catch(() => execOnWindows('cd /d C:\\Users\\anish\\Hermes-Agent-OS && start "" "node_modules\\electron\\dist\\electron.exe" .'));
         return NextResponse.json({
           success: true,
           action,
-          message: 'Launched Hermes Agent OS in dedicated Windows desktop app window.',
+          message: 'Launched Hermes Agent OS standalone independent desktop application.',
         });
       }
 

@@ -173,7 +173,7 @@ export function WindowsKaliBridgeModal({
                 <span>App Window</span>
               </div>
               <div className="mt-1 text-sm font-bold text-blue-400">
-                EDGE / CHROME
+                STANDALONE (ELECTRON)
               </div>
             </div>
           </div>

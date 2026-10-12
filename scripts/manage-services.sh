@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# HERMES AGENT OS — SERVICES CONTROLLER & DAEMON MANAGER
+# HERMES AGENT OS — SERVICES CONTROLLER & DAEMON MANAGER (TMUX PERSISTENT)
 # Autonomous manager for Next.js Studio (3001), God's Eye Cesium (4173),
-# and Hermes Gateway Daemon in WSL2 Kali Linux.
+# and Hermes Gateway Daemon in WSL2 Kali Linux with 0.0.0.0 host binding.
 # ==============================================================================
 
 STUDIO_DIR="/home/thecyberexpert/.gemini/antigravity/scratch/studio"
@@ -11,45 +11,36 @@ HERMES_DIR="/home/thecyberexpert/.hermes"
 RUN_DIR="${HERMES_DIR}/run"
 mkdir -p "${RUN_DIR}"
 
-STUDIO_PID_FILE="${RUN_DIR}/studio.pid"
-GODSEYE_PID_FILE="${RUN_DIR}/godseye.pid"
-GATEWAY_PID_FILE="${HERMES_DIR}/gateway.pid"
-
 is_port_listening() {
   local port="$1"
-  curl -s --max-time 1 -o /dev/null "http://localhost:${port}/" 2>/dev/null
+  curl -s --max-time 1 -o /dev/null "http://127.0.0.1:${port}/" 2>/dev/null
 }
 
 start_studio() {
   if is_port_listening 3001; then
-    echo "[ONLINE] Next.js Studio is already running on http://localhost:3001"
+    echo "[ONLINE] Next.js Studio is already running on http://127.0.0.1:3001"
   else
-    echo "[*] Starting Next.js Studio on port 3001..."
+    echo "[*] Starting Next.js Studio on port 3001 (-H 0.0.0.0)..."
+    tmux kill-session -t hermes-studio 2>/dev/null || true
     cd "${STUDIO_DIR}"
     if [ -d ".next" ]; then
-      PORT=3001 nohup npx next start -p 3001 > "${RUN_DIR}/studio.log" 2>&1 &
+      tmux new-session -d -s hermes-studio "cd '${STUDIO_DIR}' && PORT=3001 npx next start -H 0.0.0.0 -p 3001 > '${RUN_DIR}/studio.log' 2>&1"
     else
-      PORT=3001 nohup npm run dev > "${RUN_DIR}/studio.log" 2>&1 &
+      tmux new-session -d -s hermes-studio "cd '${STUDIO_DIR}' && PORT=3001 npm run dev > '${RUN_DIR}/studio.log' 2>&1"
     fi
-    local pid=$!
-    disown "${pid}" 2>/dev/null || true
-    echo "${pid}" > "${STUDIO_PID_FILE}"
-    echo "[+] Next.js Studio started (PID: ${pid})"
+    echo "[+] Next.js Studio initiated in persistent tmux session 'hermes-studio'."
   fi
 }
 
 start_godseye() {
   if is_port_listening 4173; then
-    echo "[ONLINE] God's Eye Cesium Viewer is already running on http://localhost:4173"
+    echo "[ONLINE] God's Eye Cesium Viewer is already running on http://127.0.0.1:4173"
   else
-    echo "[*] Starting God's Eye Cesium Viewer on port 4173..."
+    echo "[*] Starting God's Eye Cesium Viewer on port 4173 (--host 0.0.0.0)..."
     if [ -d "${GODSEYE_DIR}" ]; then
-      cd "${GODSEYE_DIR}"
-      nohup npm run dev > "${RUN_DIR}/godseye.log" 2>&1 &
-      local pid=$!
-      disown "${pid}" 2>/dev/null || true
-      echo "${pid}" > "${GODSEYE_PID_FILE}"
-      echo "[+] God's Eye Cesium started (PID: ${pid})"
+      tmux kill-session -t hermes-godseye 2>/dev/null || true
+      tmux new-session -d -s hermes-godseye "cd '${GODSEYE_DIR}' && npm run dev -- --host 0.0.0.0 --port 4173 > '${RUN_DIR}/godseye.log' 2>&1"
+      echo "[+] God's Eye Cesium initiated in persistent tmux session 'hermes-godseye'."
     else
       echo "[-] Warning: God's Eye directory not found at ${GODSEYE_DIR}"
     fi
@@ -58,8 +49,9 @@ start_godseye() {
 
 start_gateway() {
   local gw_running=false
-  if [ -f "${GATEWAY_PID_FILE}" ]; then
-    local pid=$(grep -o '"pid":\s*[0-9]*' "${GATEWAY_PID_FILE}" | grep -o '[0-9]*' || true)
+  local pidFile="${HERMES_DIR}/gateway.pid"
+  if [ -f "${pidFile}" ]; then
+    local pid=$(grep -o '"pid":\s*[0-9]*' "${pidFile}" | grep -o '[0-9]*' || true)
     if [ -n "${pid}" ] && kill -0 "${pid}" 2>/dev/null; then
       gw_running=true
       echo "[ONLINE] Hermes Gateway Daemon is running (PID: ${pid})"
@@ -75,14 +67,12 @@ start_gateway() {
   fi
 
   if [ "${gw_running}" = false ]; then
-    echo "[*] Starting Hermes Gateway Daemon..."
+    echo "[*] Starting Hermes Gateway Daemon in persistent tmux session..."
     local pyBin="${HERMES_DIR}/tools/python-3.14.7+20260901-linux-x64/bin/python3"
     local cliBin="${HERMES_DIR}/hermes-agent/hermes_cli/main.py"
     if [ -x "${pyBin}" ] && [ -f "${cliBin}" ]; then
-      cd "${HERMES_DIR}"
-      nohup "${pyBin}" "${cliBin}" gateway run > "${RUN_DIR}/gateway.log" 2>&1 &
-      local pid=$!
-      disown "${pid}" 2>/dev/null || true
+      tmux kill-session -t hermes-gateway 2>/dev/null || true
+      tmux new-session -d -s hermes-gateway "cd '${HERMES_DIR}' && '${pyBin}' '${cliBin}' gateway run > '${RUN_DIR}/gateway.log' 2>&1"
       echo "[+] Hermes Gateway Daemon initiated."
     else
       echo "[-] Warning: Sandboxed Python or Hermes CLI not found."
@@ -93,12 +83,11 @@ start_gateway() {
 wait_ready() {
   local timeout=${1:-30}
   local elapsed=0
-  echo "[*] Waiting for services to become responsive (timeout: ${timeout}s)..."
+  echo "[*] Waiting for services to become responsive on 0.0.0.0 (timeout: ${timeout}s)..."
   while [ ${elapsed} -lt ${timeout} ]; do
     if is_port_listening 3001 && is_port_listening 4173; then
       echo "[+] All services are ready! Studio: http://localhost:3001 | God's Eye: http://localhost:4173"
-      # Trigger deep auto-setup
-      curl -s -X POST http://localhost:3001/api/system/auto-setup >/dev/null 2>&1 || true
+      curl -s -X POST http://127.0.0.1:3001/api/system/auto-setup >/dev/null 2>&1 || true
       return 0
     fi
     sleep 1
@@ -109,20 +98,10 @@ wait_ready() {
 
 stop_all() {
   echo "[*] Stopping Hermes Agent OS services..."
-  if [ -f "${STUDIO_PID_FILE}" ]; then
-    local spid=$(cat "${STUDIO_PID_FILE}" 2>/dev/null || true)
-    if [ -n "${spid}" ]; then kill "${spid}" 2>/dev/null || true; fi
-    rm -f "${STUDIO_PID_FILE}"
-  fi
+  tmux kill-session -t hermes-studio 2>/dev/null || true
+  tmux kill-session -t hermes-godseye 2>/dev/null || true
   fuser -k 3001/tcp 2>/dev/null || true
-
-  if [ -f "${GODSEYE_PID_FILE}" ]; then
-    local gpid=$(cat "${GODSEYE_PID_FILE}" 2>/dev/null || true)
-    if [ -n "${gpid}" ]; then kill "${gpid}" 2>/dev/null || true; fi
-    rm -f "${GODSEYE_PID_FILE}"
-  fi
   fuser -k 4173/tcp 2>/dev/null || true
-
   echo "[+] Services stopped successfully."
 }
 
@@ -134,6 +113,7 @@ status_all() {
   local pgrep_pid=$(pgrep -f "hermes_cli.*gateway run" | head -n 1 || true)
   if [ -n "${pgrep_pid}" ]; then gw_status="ONLINE (PID: ${pgrep_pid})"; fi
   echo "Hermes Gateway Daemon:  ${gw_status}"
+  echo "Active Tmux Sessions:   $(tmux ls 2>/dev/null | cut -d: -f1 | tr '\n' ' ' || echo 'none')"
   echo "======================================="
 }
 
