@@ -189,8 +189,8 @@ export const HermesCommandsDialog: React.FC<HermesCommandsDialogProps> = ({
         </DialogHeader>
 
         {/* Command Grid Stream */}
-        <div className="flex-1 overflow-hidden p-3 sm:p-5">
-          <div className="flex items-center justify-between mb-3 text-xs font-mono text-muted-foreground">
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden p-3 sm:p-5">
+          <div className="flex items-center justify-between mb-2.5 text-xs font-mono text-muted-foreground shrink-0">
             <span>
               SHOWING <strong className="text-accent">{filteredCommands.length}</strong> OF {HERMES_COMMANDS.length} COMMANDS
             </span>
@@ -199,7 +199,7 @@ export const HermesCommandsDialog: React.FC<HermesCommandsDialogProps> = ({
             </span>
           </div>
 
-          <ScrollArea className="h-[calc(85vh-230px)] sm:h-[calc(820px-230px)] pr-2">
+          <ScrollArea className="flex-1 min-h-0 w-full pr-2.5">
             {filteredCommands.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <Search size={36} className="text-muted-foreground/40 mb-3" />
@@ -218,7 +218,7 @@ export const HermesCommandsDialog: React.FC<HermesCommandsDialogProps> = ({
                 </Button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pb-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pb-16 pt-1">
                 {filteredCommands.map((cmd) => (
                   <div
                     key={cmd.name}

@@ -33,12 +33,12 @@ interface AudioSpectrumBarProps {
   compact?: boolean;
 }
 
-type AudioSourceType = 'hybrid' | 'windows' | 'wsl' | 'hardware' | 'synth';
+type AudioSourceType = 'all_win' | 'windows' | 'hardware' | 'synth';
 
 export const AudioSpectrumBar: React.FC<AudioSpectrumBarProps> = ({
   className,
   intensity = 0.35,
-  label = 'SYSTEM AUDIO',
+  label = 'WINDOWS AUDIO [OUTPUT / INPUT]',
   compact = false,
 }) => {
   const [bars, setBars] = useState<number[]>(() => Array.from({ length: 28 }, () => 8));
@@ -50,31 +50,21 @@ export const AudioSpectrumBar: React.FC<AudioSpectrumBarProps> = ({
 
   // Source selection & modal state
   const [isSourcesModalOpen, setIsSourcesModalOpen] = useState(false);
-  const [sourceMode, setSourceMode] = useState<AudioSourceType>('hybrid');
-  const [activeDetectedSource, setActiveDetectedSource] = useState<string>('STANDBY');
+  const [sourceMode, setSourceMode] = useState<AudioSourceType>('all_win');
+  const [activeDetectedSource, setActiveDetectedSource] = useState<string>('STANDBY (WIN HOST)');
 
   // Hardware devices
   const [inputDevices, setInputDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
 
-  // Source connection statuses
+  // Source connection statuses (Strictly Windows Host Only)
   const [isWindowsCaptured, setIsWindowsCaptured] = useState(false);
   const [isDeviceCaptured, setIsDeviceCaptured] = useState(false);
-  const [isWslMonitorEnabled, setIsWslMonitorEnabled] = useState(true);
-  const [wslStatus, setWslStatus] = useState<{ active: boolean; db: number; rms: number }>({
-    active: false,
-    db: -90,
-    rms: 0,
-  });
-
   const [captureError, setCaptureError] = useState<string | null>(null);
   const [isTestingTone, setIsTestingTone] = useState(false);
 
   const animFrameRef = useRef<number | null>(null);
   const peaksRef = useRef<number[]>(Array.from({ length: 28 }, () => 10));
-  const wslFftRef = useRef<number[]>(Array.from({ length: 28 }, () => 0));
-  const wslActiveRef = useRef<boolean>(false);
-  const wslDbRef = useRef<number>(-90);
 
   // Sync state with audio-synth changes
   useEffect(() => {
@@ -99,46 +89,6 @@ export const AudioSpectrumBar: React.FC<AudioSpectrumBarProps> = ({
       });
     }
   }, [isSourcesModalOpen, selectedDeviceId]);
-
-  // WSL PulseAudio Background Telemetry Polling (every 220ms when enabled)
-  useEffect(() => {
-    if (!isWslMonitorEnabled) {
-      wslActiveRef.current = false;
-      wslDbRef.current = -90;
-      wslFftRef.current = Array(28).fill(0);
-      setWslStatus({ active: false, db: -90, rms: 0 });
-      return;
-    }
-
-    let isMounted = true;
-    const interval = setInterval(async () => {
-      try {
-        const res = await fetch('/api/system/audio');
-        if (res.ok) {
-          const data = await res.json();
-          if (!isMounted) return;
-
-          wslActiveRef.current = !!data.active;
-          wslDbRef.current = typeof data.db === 'number' ? data.db : -90;
-          if (Array.isArray(data.fft) && data.fft.length === 28) {
-            wslFftRef.current = data.fft;
-          }
-          setWslStatus({
-            active: !!data.active,
-            db: data.db,
-            rms: data.rms,
-          });
-        }
-      } catch {
-        // Standby if network / server busy
-      }
-    }, 220);
-
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, [isWslMonitorEnabled]);
 
   // Actions for audio capture
   const handleToggleWindowsAudio = async () => {
@@ -207,8 +157,8 @@ export const AudioSpectrumBar: React.FC<AudioSpectrumBarProps> = ({
       let synActive = false;
       const wslActive = wslActiveRef.current;
 
-      // 1. Probe Windows System Audio Analyser
-      if (sysAnalyser && (sourceMode === 'hybrid' || sourceMode === 'windows')) {
+      // 1. Probe Windows System Audio Analyser (Output)
+      if (sysAnalyser && (sourceMode === 'all_win' || sourceMode === 'windows')) {
         sysAnalyser.getByteFrequencyData(freqDataSys);
         sysAnalyser.getByteTimeDomainData(timeDataSys);
         for (let i = 0; i < 32; i++) {
@@ -219,8 +169,8 @@ export const AudioSpectrumBar: React.FC<AudioSpectrumBarProps> = ({
         }
       }
 
-      // 2. Probe Device / Mic / Hardware Loopback Analyser
-      if (devAnalyser && (sourceMode === 'hybrid' || sourceMode === 'hardware')) {
+      // 2. Probe Device / Mic / Hardware Loopback Analyser (Input)
+      if (devAnalyser && (sourceMode === 'all_win' || sourceMode === 'hardware')) {
         devAnalyser.getByteFrequencyData(freqDataDev);
         devAnalyser.getByteTimeDomainData(timeDataDev);
         for (let i = 0; i < 32; i++) {
@@ -231,8 +181,8 @@ export const AudioSpectrumBar: React.FC<AudioSpectrumBarProps> = ({
         }
       }
 
-      // 3. Probe Internal Synthesizer Audio Analyser
-      if (synAnalyser && (sourceMode === 'hybrid' || sourceMode === 'synth')) {
+      // 3. Probe Internal Synthesizer Audio Analyser (SFX)
+      if (synAnalyser && (sourceMode === 'all_win' || sourceMode === 'synth')) {
         synAnalyser.getByteFrequencyData(freqDataSyn);
         synAnalyser.getByteTimeDomainData(timeDataSyn);
         for (let i = 0; i < 32; i++) {
@@ -243,27 +193,24 @@ export const AudioSpectrumBar: React.FC<AudioSpectrumBarProps> = ({
         }
       }
 
-      // Determine active master source
-      let currentSource = 'STANDBY';
+      // Determine active master source (Windows Host Only)
+      let currentSource = 'STANDBY (WIN HOST)';
       let activeFreq: Uint8Array | null = null;
       let activeTime: Uint8Array | null = null;
       let isAnyActive = false;
 
       if (sysActive) {
-        currentSource = 'WIN SYSTEM';
+        currentSource = 'WIN OUTPUT';
         activeFreq = freqDataSys;
         activeTime = timeDataSys;
         isAnyActive = true;
-      } else if (wslActive && (sourceMode === 'hybrid' || sourceMode === 'wsl')) {
-        currentSource = 'WSL PULSE';
-        isAnyActive = true;
       } else if (devActive) {
-        currentSource = 'MIC / INPUT';
+        currentSource = 'WIN INPUT';
         activeFreq = freqDataDev;
         activeTime = timeDataDev;
         isAnyActive = true;
       } else if (synActive) {
-        currentSource = 'HUD SFX';
+        currentSource = 'WIN SFX';
         activeFreq = freqDataSyn;
         activeTime = timeDataSyn;
         isAnyActive = true;
@@ -279,11 +226,7 @@ export const AudioSpectrumBar: React.FC<AudioSpectrumBarProps> = ({
       for (let b = 0; b < barCount; b++) {
         let barHeight = 0;
 
-        if (currentSource === 'WSL PULSE') {
-          // Use sampled WSL PulseAudio FFT bins
-          const wslVal = wslFftRef.current[b] || 0;
-          barHeight = Math.min(100, Math.max(5, Math.round(wslVal * 1.15)));
-        } else if (activeFreq) {
+        if (activeFreq) {
           const binIndex = Math.min(63, Math.floor(Math.pow(b / barCount, 1.35) * 58));
           const rawAmp = activeFreq[binIndex] || 0;
           if (rawAmp > 3) {
@@ -390,13 +333,13 @@ export const AudioSpectrumBar: React.FC<AudioSpectrumBarProps> = ({
               : 'border-primary/25 bg-background/80 text-muted-foreground hover:text-accent',
             className
           )}
-          title={`Audio DSP Matrix: ${activeDetectedSource} (${dbLevel} dB) — Click to configure sources`}
+          title={`Windows Sound Detection: ${activeDetectedSource} (${dbLevel} dB) — Click to configure Windows Output/Input sources`}
         >
           <Volume2
             size={12}
             className={cn('shrink-0', isOutputActive ? 'text-accent animate-pulse' : 'text-primary/70')}
           />
-          <span className="text-[9px] font-bold text-primary hidden xl:inline">DSP</span>
+          <span className="text-[9px] font-bold text-cyan-400 hidden xl:inline">WIN AUDIO</span>
           <div className="flex items-end gap-[1.5px] h-3.5 w-14 shrink-0">
             {bars.slice(0, 12).map((h, i) => (
               <span
@@ -650,22 +593,29 @@ export const AudioSpectrumBar: React.FC<AudioSpectrumBarProps> = ({
             <div className="flex items-center justify-between p-2 rounded-xl border border-primary/20 bg-primary/5 text-xs">
               <span className="text-muted-foreground font-bold">DETECTION BUS:</span>
               <div className="flex items-center gap-1">
-                {(['hybrid', 'windows', 'wsl', 'hardware', 'synth'] as AudioSourceType[]).map((mode) => (
+                {(
+                  [
+                    { id: 'all_win', label: 'ALL WINDOWS' },
+                    { id: 'windows', label: 'WIN OUTPUT' },
+                    { id: 'hardware', label: 'WIN INPUT' },
+                    { id: 'synth', label: 'WIN SFX' },
+                  ] as const
+                ).map(({ id, label }) => (
                   <button
-                    key={mode}
+                    key={id}
                     type="button"
                     onClick={() => {
                       soundFx.playClick(950);
-                      setSourceMode(mode);
+                      setSourceMode(id);
                     }}
                     className={cn(
                       'px-2 py-1 rounded text-[10px] uppercase font-bold transition-all cursor-pointer',
-                      sourceMode === mode
+                      sourceMode === id
                         ? 'bg-primary text-black shadow-[0_0_10px_hsl(var(--primary))]'
                         : 'text-muted-foreground hover:text-foreground hover:bg-primary/10'
                     )}
                   >
-                    {mode}
+                    {label}
                   </button>
                 ))}
               </div>
@@ -677,7 +627,7 @@ export const AudioSpectrumBar: React.FC<AudioSpectrumBarProps> = ({
                 <div className="flex items-center gap-2">
                   <Laptop size={15} className="text-cyan-400" />
                   <span className="font-bold text-xs text-foreground">
-                    WINDOWS & EXTERNAL SYSTEM AUDIO
+                    WINDOWS & EXTERNAL SYSTEM AUDIO [OUTPUT]
                   </span>
                 </div>
                 <span
@@ -716,57 +666,23 @@ export const AudioSpectrumBar: React.FC<AudioSpectrumBarProps> = ({
               </div>
             </div>
 
-            {/* Source 2: WSL Linux PulseAudio Bus */}
+            {/* Source 2: Windows Sound Detection Policy */}
             <div className="rounded-xl border border-primary/20 bg-background/60 p-3 space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Terminal size={15} className="text-emerald-400" />
+                  <Laptop size={15} className="text-cyan-400" />
                   <span className="font-bold text-xs text-foreground">
-                    WSL2 PULSEAUDIO SERVER // KALI LINUX
+                    SOUND DETECTION POLICY: WINDOWS ONLY
                   </span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span
-                    className={cn(
-                      'px-2 py-0.5 rounded text-[9px] font-bold border',
-                      wslStatus.active
-                        ? 'border-emerald-500/40 bg-emerald-500/20 text-emerald-400 animate-pulse'
-                        : 'border-primary/30 bg-primary/10 text-primary'
-                    )}
-                  >
-                    {wslStatus.active ? `ACTIVE // ${wslStatus.db} dB` : 'RDPSink.monitor: READY'}
-                  </span>
-                </div>
+                <span className="px-2 py-0.5 rounded text-[9px] font-bold border border-cyan-400/40 bg-cyan-400/15 text-cyan-400">
+                  WSL BYPASSED
+                </span>
               </div>
 
               <p className="text-[11px] text-muted-foreground font-sans leading-relaxed">
-                Connects directly to <code>/mnt/wslg/PulseServer</code> monitor sink. Captures audio
-                generated by Linux CLI tools, scripts, Python audio, and WSL background daemons.
+                Sound detection and acoustic analysis are dedicated strictly to the <strong>Windows Host</strong> subsystem [Output &amp; Input]. WSL Linux internal PulseAudio sampling is disabled to prevent sound leakage, daemon conflicts, and background latency.
               </p>
-
-              <div className="flex items-center justify-between pt-1">
-                <button
-                  type="button"
-                  onClick={() => setIsWslMonitorEnabled((v) => !v)}
-                  className={cn(
-                    'px-2.5 py-1 rounded text-[10px] font-bold border transition-colors cursor-pointer',
-                    isWslMonitorEnabled
-                      ? 'border-emerald-500/50 bg-emerald-500/15 text-emerald-400'
-                      : 'border-primary/25 bg-background text-muted-foreground'
-                  )}
-                >
-                  WSL MONITOR: {isWslMonitorEnabled ? 'ENABLED' : 'PAUSED'}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleTestWslTone}
-                  disabled={isTestingTone}
-                  className="px-2.5 py-1.5 rounded-lg text-xs font-bold border border-emerald-500/50 bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500 hover:text-black transition-all cursor-pointer shadow-sm"
-                >
-                  {isTestingTone ? 'PLAYING CHIRP...' : 'TEST WSL 750Hz TONE'}
-                </button>
-              </div>
             </div>
 
             {/* Source 3: Physical Microphone & Hardware Stereo Mix */}

@@ -332,7 +332,7 @@ export const JarvisCommandPalette: React.FC<JarvisCommandPaletteProps> = ({
         </div>
 
         {/* Command List */}
-        <div className="max-h-[55vh] overflow-y-auto p-2 space-y-1">
+        <div className="max-h-[55vh] overflow-y-auto p-2 pb-8 space-y-1 scrollbar-thin">
           {filteredCommands.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground font-mono text-xs">
               <Sparkles size={24} className="mx-auto text-primary/40 mb-2 animate-bounce" />

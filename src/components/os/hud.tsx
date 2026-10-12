@@ -374,7 +374,7 @@ const HUD = ({ setMode, onSelectSession }: HUDProps) => {
                   <span className="hidden 2xl:inline text-xs">PROTOCOLS</span>
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-64 border-primary/40 bg-background/95 backdrop-blur-xl text-primary font-mono text-xs shadow-[0_0_30px_hsl(var(--primary)/0.3)] z-[80]">
+              <DropdownMenuContent className="w-64 max-h-[85vh] overflow-y-auto pb-4 scrollbar-thin border-primary/40 bg-background/95 backdrop-blur-xl text-primary font-mono text-xs shadow-[0_0_30px_hsl(var(--primary)/0.3)] z-[80]">
                 <DropdownMenuLabel className="text-[10px] text-muted-foreground tracking-widest font-mono">
                   STARK MARK-XV // PROTOCOLS
                 </DropdownMenuLabel>
@@ -648,7 +648,7 @@ const HUD = ({ setMode, onSelectSession }: HUDProps) => {
 
           {/* Bottom Center: Quantum Audio/Activity Spectrum & Telemetry Status */}
           <div className="flex-1 flex flex-col items-center justify-center gap-1 w-full max-w-lg mx-auto">
-            <AudioSpectrumBar className="w-full" label="SYSTEM AUDIO" intensity={metrics.cpuUsage / 100} />
+            <AudioSpectrumBar className="w-full" label="WINDOWS AUDIO [OUTPUT / INPUT]" intensity={metrics.cpuUsage / 100} />
             <div className="flex items-center justify-center gap-1.5 sm:gap-2 text-[9px] sm:text-[10px] font-mono text-muted-foreground whitespace-nowrap overflow-hidden">
               <span>UPTIME: <strong className="text-accent">{metrics.uptime || '2h 15m'}</strong></span>
               <span>•</span>
