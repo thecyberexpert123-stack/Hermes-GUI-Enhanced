@@ -64,12 +64,25 @@ export function useWisprFlow(options: UseWisprFlowOptions = {}) {
   const [pendingDictation, setPendingDictation] = useState<WisprDictation | null>(null);
 
   const autoLaunchAttemptedRef = useRef(false);
+  const autoLaunchRef = useRef(autoLaunch);
+  const isMountedRef = useRef(true);
   const lastKnownIdRef = useRef<string | null>(null);
   const onNewDictationRef = useRef(onNewDictation);
   const onAutoSubmitRef = useRef(onAutoSubmit);
   const onPendingApprovalRef = useRef(onPendingApproval);
   const executionModeRef = useRef(executionMode);
   const activationModeRef = useRef(activationMode);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    autoLaunchRef.current = autoLaunch;
+  }, [autoLaunch]);
 
   useEffect(() => {
     onNewDictationRef.current = onNewDictation;
@@ -132,11 +145,13 @@ export function useWisprFlow(options: UseWisprFlowOptions = {}) {
 
   const refresh = useCallback(async () => {
     try {
-      setIsSyncing(true);
+      if (isMountedRef.current) setIsSyncing(true);
       const res = await fetch('/api/system/wispr-flow', { cache: 'no-store' });
-      if (!res.ok) return;
+      if (!res.ok || !isMountedRef.current) return;
 
       const data: WisprStatusResponse = await res.json();
+      if (!isMountedRef.current) return;
+
       setIsInstalled(data.installed);
       setIsRunning(data.running);
       setVersion(data.version);
@@ -146,7 +161,7 @@ export function useWisprFlow(options: UseWisprFlowOptions = {}) {
       setTotalDictationsCount(data.totalDictationsCount || 0);
 
       // Silent Auto-Launch Wispr Flow if installed but not running
-      if (data.installed && !data.running && autoLaunch && !autoLaunchAttemptedRef.current) {
+      if (data.installed && !data.running && autoLaunchRef.current && !autoLaunchAttemptedRef.current) {
         autoLaunchAttemptedRef.current = true;
         fetch('/api/system/wispr-flow', {
           method: 'POST',
@@ -183,7 +198,9 @@ export function useWisprFlow(options: UseWisprFlowOptions = {}) {
     } catch (err) {
       console.warn('Wispr Flow sync notice:', err);
     } finally {
-      setIsSyncing(false);
+      if (isMountedRef.current) {
+        setIsSyncing(false);
+      }
     }
   }, []);
 

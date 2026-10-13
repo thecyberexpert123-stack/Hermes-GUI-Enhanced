@@ -637,6 +637,11 @@ class AudioSynthesizer {
     } catch {}
   }
 
+  // Warning alias for system alert
+  public playWarning() {
+    this.playJarvisAlert();
+  }
+
   // Futuristic armor calibration sweep on theme change
   public playThemeSwitch() {
     if (this.isMuted) return;

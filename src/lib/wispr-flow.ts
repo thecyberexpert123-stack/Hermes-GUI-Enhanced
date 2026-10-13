@@ -153,24 +153,29 @@ export function getWisprDictations(limit = 20): { dictations: WisprDictation[]; 
     const db = new DatabaseSync(snapDb, { readOnly: true });
 
     let totalCount = 0;
+    let rows: any[] = [];
     try {
-      const countRow = db.prepare('SELECT COUNT(*) as count FROM History').get();
-      if (countRow && typeof countRow.count === 'number') {
-        totalCount = countRow.count;
-      }
-    } catch {}
+      try {
+        const countRow = db.prepare('SELECT COUNT(*) as count FROM History').get();
+        if (countRow && typeof countRow.count === 'number') {
+          totalCount = countRow.count;
+        }
+      } catch {}
 
-    const safeLimit = Math.min(100, Math.max(1, limit));
-    const rows = db
-      .prepare(
-        `SELECT transcriptEntityId, timestamp, app, url, status, formattedText, pastedText, duration, numWords, e2eLatency, detectedLanguage, micDevice
-         FROM History
-         ORDER BY timestamp DESC
-         LIMIT ?`
-      )
-      .all(safeLimit);
-
-    db.close();
+      const safeLimit = Math.min(100, Math.max(1, limit));
+      rows = db
+        .prepare(
+          `SELECT transcriptEntityId, timestamp, app, url, status, formattedText, pastedText, duration, numWords, e2eLatency, detectedLanguage, micDevice
+           FROM History
+           ORDER BY timestamp DESC
+           LIMIT ?`
+        )
+        .all(safeLimit);
+    } finally {
+      try {
+        db.close();
+      } catch {}
+    }
 
     const dictations: WisprDictation[] = (rows as any[]).map((r) => ({
       id: r.transcriptEntityId || '',

@@ -604,6 +604,7 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
       if (!cleanQuery) {
         isProcessingRef.current = false;
         hasSubmittedRef.current = false;
+        stopAudioAnalysis();
         if (modeRef.current === 'auto') {
           startMonitoringRef.current();
         } else {
@@ -615,6 +616,7 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
       // If consumer only wants recognized transcript directly (e.g. Chat Mode)
       if (skipApiQuery && onTranscriptReady) {
         soundFx.playClick(880);
+        stopAudioAnalysis();
         onTranscriptReady(cleanQuery);
         isProcessingRef.current = false;
         hasSubmittedRef.current = false;
@@ -636,8 +638,9 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
         );
       }
 
-      // Cleanly shutdown recognition before inference
+      // Cleanly shutdown recognition and audio analysis before inference
       await safelyDestroyRecognition();
+      stopAudioAnalysis();
 
       // Thinking Watchdog: Never let inference stay hung forever
       if (thinkingWatchdogRef.current) clearTimeout(thinkingWatchdogRef.current);
@@ -728,7 +731,7 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
         }
       }
     },
-    [sessionId, skipApiQuery, onTranscriptReady, autoSpeakResponse, speakText, onQueryComplete, safelyDestroyRecognition]
+    [sessionId, skipApiQuery, onTranscriptReady, autoSpeakResponse, speakText, onQueryComplete, safelyDestroyRecognition, stopAudioAnalysis]
   );
 
   sendVoiceQueryRef.current = sendVoiceQuery;
@@ -1062,11 +1065,11 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
 
           // Transcribe using Sarvam Neural STT (Saaras:v3)
           try {
+            stopAudioAnalysis();
             setStatus('thinking');
             setInterimTranscript('Transcribing audio via Sarvam Saaras AI...');
             const sttResult = await transcribeSarvamAudio(recordedBlob);
             const clean = sttResult.trim();
-            stopAudioAnalysis();
 
             if (clean) {
               hasSubmittedRef.current = true;

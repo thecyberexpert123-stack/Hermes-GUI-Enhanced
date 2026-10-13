@@ -375,11 +375,6 @@ const VoiceHUD = ({
               <span className="h-1.5 w-1.5 rounded-full bg-destructive animate-ping" />
               RECORDING
             </span>
-          ) : status === 'thinking' ? (
-            <span className="text-accent font-bold animate-pulse flex items-center gap-1">
-              <Zap size={10} className="animate-bounce" />
-              INFERENCE
-            </span>
           ) : status === 'speaking' ? (
             <span className="text-emerald-400 font-bold flex items-center gap-1">
               <Volume2 size={10} />
@@ -490,8 +485,6 @@ const VoiceHUD = ({
               ? 'bg-accent/30 border-2 border-accent scale-105 shadow-[0_0_35px_hsl(var(--accent)/0.6)] animate-pulse'
               : status === 'listening'
               ? 'bg-destructive/30 border-2 border-destructive animate-pulse shadow-[0_0_30px_hsl(var(--destructive)/0.5)]'
-              : status === 'thinking'
-              ? 'bg-accent/20 border-2 border-accent animate-spin-slow'
               : status === 'monitoring'
               ? 'bg-accent/15 border-2 border-accent/70 hover:bg-accent/25 hover:scale-105'
               : 'bg-primary/20 border-2 border-primary hover:bg-primary/30 hover:border-accent hover:scale-105'
@@ -526,8 +519,6 @@ const VoiceHUD = ({
               ? 'WORKING'
               : status === 'listening'
               ? 'STOP'
-              : status === 'thinking'
-              ? 'THINK'
               : status === 'monitoring'
               ? 'MONITOR'
               : 'SPEAK'}
@@ -553,8 +544,6 @@ const VoiceHUD = ({
           <span className="text-accent font-bold animate-pulse font-sans">⚡ &quot;HERMES&quot; / &quot;JARVIS&quot; AWOKEN! RECORDING COMMAND...</span>
         ) : status === 'listening' ? (
           <span className="text-destructive font-bold animate-pulse font-sans">● RECORDING AUDIO... (AUTO-DETECTS PAUSE OR CLICK TO FINISH)</span>
-        ) : status === 'thinking' ? (
-          <span className="text-accent font-bold animate-pulse font-sans">⚡ TRANSCRIBING &amp; RUNNING INFERENCE IN WSL...</span>
         ) : status === 'speaking' ? (
           <span className="text-emerald-400 font-bold font-sans">🔊 HERMES RESPONDING...</span>
         ) : status === 'monitoring' ? (

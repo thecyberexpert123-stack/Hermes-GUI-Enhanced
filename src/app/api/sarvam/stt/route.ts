@@ -68,6 +68,7 @@ export async function POST(req: NextRequest) {
       headers: {
         'api-subscription-key': apiKey.trim(),
       },
+      signal: AbortSignal.timeout(15000),
       body: sarvamFormData,
     });
 

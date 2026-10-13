@@ -40,6 +40,7 @@ export async function POST(req: NextRequest) {
         'Content-Type': 'application/json',
         'api-subscription-key': apiKey.trim(),
       },
+      signal: AbortSignal.timeout(12000),
       body: JSON.stringify({
         inputs: [trimmedText],
         target_language_code: languageCode,

@@ -166,7 +166,9 @@ export async function getHermesStatus(): Promise<HermesStatus> {
   try {
     const dbPath = path.join(HERMES_HOME, 'state.db');
     if (fs.existsSync(dbPath)) {
-      const countRes = await execAsync(`sqlite3 "${dbPath}" "SELECT count(*) FROM sessions;"`);
+      const countRes = await execAsync(`sqlite3 -cmd ".timeout 2000" "${dbPath}" "SELECT count(*) FROM sessions;"`, {
+        timeout: 4000,
+      });
       sessionsCount = parseInt(countRes.stdout.trim(), 10) || sessionsCount;
     }
   } catch {
@@ -191,7 +193,7 @@ export async function getHermesSessions(): Promise<HermesSessionItem[]> {
     const dbPath = path.join(HERMES_HOME, 'state.db');
     if (fs.existsSync(dbPath)) {
       const query = `SELECT id, COALESCE(title, id), datetime(last_activity_at, 'unixepoch'), COALESCE(cwd, '—'), message_count FROM sessions ORDER BY last_activity_at DESC LIMIT 35;`;
-      const { stdout } = await execAsync(`sqlite3 -separator '|' "${dbPath}" "${query}"`, {
+      const { stdout } = await execAsync(`sqlite3 -cmd ".timeout 2000" -separator '|' "${dbPath}" "${query}"`, {
         timeout: 5000,
       });
 
@@ -226,7 +228,7 @@ export async function getSessionMessages(sessionId: string): Promise<Array<{ rol
     if (fs.existsSync(dbPath)) {
       const safeId = sessionId.replace(/[^a-zA-Z0-9_-]/g, '');
       const query = `SELECT role, content FROM messages WHERE session_id = '${safeId}' AND role IN ('user', 'assistant') ORDER BY id ASC LIMIT 100;`;
-      const { stdout } = await execAsync(`sqlite3 -separator '|---MSG---|' "${dbPath}" "${query}"`, {
+      const { stdout } = await execAsync(`sqlite3 -cmd ".timeout 2000" -separator '|---MSG---|' "${dbPath}" "${query}"`, {
         timeout: 5000,
       });
 
@@ -405,7 +407,9 @@ export async function performSystemBoost(): Promise<{
   try {
     const dbPath = path.join(HERMES_HOME, 'state.db');
     if (fs.existsSync(dbPath)) {
-      await execAsync(`sqlite3 "${dbPath}" "PRAGMA wal_checkpoint(PASSIVE);"`);
+      await execAsync(`sqlite3 -cmd ".timeout 2000" "${dbPath}" "PRAGMA wal_checkpoint(PASSIVE);"`, {
+        timeout: 4000,
+      });
       details.push('Compacted Hermes SQLite WAL memory journals');
     }
   } catch {}

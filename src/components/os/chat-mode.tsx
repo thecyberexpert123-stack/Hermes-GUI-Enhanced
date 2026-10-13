@@ -1059,7 +1059,7 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
     let activeTaskInstanceId: string | null = null;
     let initialTaskAiMessageId: string | null = null;
 
-    if (isToolTask && !isGodsEyeSlash && !geoQueryMatch && !usingGodsEyeMatch) {
+    if (isToolTask) {
       activeTaskInstanceId = `task-${nanoid()}`;
       initialTaskAiMessageId = `msg-${activeTaskInstanceId}`;
       const newTask: JarvisTaskItem = {
@@ -1181,6 +1181,9 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
               : t
           )
         );
+        if (isVoiceOpen) {
+          setActiveTaskId(null);
+        }
       }
     } catch (error: any) {
       console.error('Error invoking Hermes agent:', error);
@@ -1224,6 +1227,9 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
               : t
           )
         );
+        if (isVoiceOpen) {
+          setActiveTaskId(null);
+        }
       }
     } finally {
       setIsLoading(false);

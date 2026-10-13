@@ -50,6 +50,7 @@ export async function GET(req: NextRequest) {
       {
         headers: { 'User-Agent': 'GodsEyeGeospatial/2.0 (Hermes Studio Engine)' },
         cache: 'no-store',
+        signal: AbortSignal.timeout(4500),
       }
     );
 
@@ -138,7 +139,10 @@ export async function GET(req: NextRequest) {
   try {
     const photonRes = await fetch(
       `https://photon.komoot.io/api/?q=${encodeURIComponent(cleanQuery)}&limit=1`,
-      { cache: 'no-store' }
+      {
+        cache: 'no-store',
+        signal: AbortSignal.timeout(4500),
+      }
     );
 
     if (photonRes.ok) {
