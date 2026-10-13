@@ -25,10 +25,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { MessageSquare, Volume2, VolumeX, ShieldCheck, Cpu, Zap, Flame, Shield, Layers, Radio, Mic, Search, Disc, SlidersHorizontal, Globe, Wrench, Monitor, Terminal } from 'lucide-react';
+import { MessageSquare, Volume2, VolumeX, ShieldCheck, Cpu, Zap, Flame, Shield, Layers, Radio, Mic, Search, Disc, SlidersHorizontal, Globe, Wrench, Monitor, Terminal, Waves } from 'lucide-react';
 import { GodsEyeModal } from './gods-eye-modal';
 import { AutoSetupModal } from './auto-setup-modal';
 import { WindowsKaliBridgeModal } from './windows-kali-bridge';
+import { WisprFlowModal } from './wispr-flow-modal';
+import { useWisprFlow } from '@/hooks/use-wispr-flow';
 import { type AppMode } from '@/app/page';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -50,8 +52,11 @@ const HUD = ({ setMode, onSelectSession }: HUDProps) => {
   const [isGodsEyeOpen, setIsGodsEyeOpen] = useState(false);
   const [isAutoSetupOpen, setIsAutoSetupOpen] = useState(false);
   const [isWindowsBridgeOpen, setIsWindowsBridgeOpen] = useState(false);
+  const [isWisprFlowOpen, setIsWisprFlowOpen] = useState(false);
   const [godsEyeLocation, setGodsEyeLocation] = useState<GeoLocation | null>(null);
   const [godsEyeTarget, setGodsEyeTarget] = useState<string | undefined>(undefined);
+
+  const { isRunning: isWisprRunning } = useWisprFlow({ pollingIntervalMs: 4000 });
 
   const spawnKaliTerminal = useCallback(async () => {
     soundFx.playClick(1100);
@@ -480,6 +485,24 @@ const HUD = ({ setMode, onSelectSession }: HUDProps) => {
               <span className="hidden 2xl:inline text-xs">VOICE HUD</span>
             </button>
 
+            {/* Wispr Flow Windows Engine */}
+            <button
+              onClick={() => {
+                soundFx.playClick(1100);
+                setIsWisprFlowOpen(true);
+              }}
+              className={cn(
+                "flex items-center gap-1.5 rounded-md border px-2 sm:px-2.5 py-1.5 text-xs font-bold transition-all shrink-0 cursor-pointer",
+                isWisprRunning
+                  ? "border-accent/50 bg-accent/15 text-accent hover:bg-accent/25 hover:shadow-[0_0_15px_hsl(var(--accent)/0.35)]"
+                  : "border-primary/25 bg-background/60 text-muted-foreground hover:bg-primary/20 hover:text-accent"
+              )}
+              title="Wispr Flow Windows Engine & Real-time Dictation Stream [Caps Lock]"
+            >
+              <Waves size={13} className={isWisprRunning ? "text-accent animate-pulse" : ""} />
+              <span className="hidden 2xl:inline text-xs font-mono">WISPR FLOW</span>
+            </button>
+
             {/* God's Eye 3D Satellite & OSINT Launcher */}
             <button
               onClick={() => {
@@ -738,6 +761,15 @@ const HUD = ({ setMode, onSelectSession }: HUDProps) => {
         isOpen={isWindowsBridgeOpen}
         onOpenChange={setIsWindowsBridgeOpen}
         onTriggerAutoSetup={() => setIsAutoSetupOpen(true)}
+      />
+
+      {/* Wispr Flow Windows Engine Modal */}
+      <WisprFlowModal
+        isOpen={isWisprFlowOpen}
+        onClose={() => setIsWisprFlowOpen(false)}
+        onSelectPrompt={(text) => {
+          setMode('chat');
+        }}
       />
     </div>
   );

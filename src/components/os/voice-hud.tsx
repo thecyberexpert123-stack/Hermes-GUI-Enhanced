@@ -16,11 +16,14 @@ import {
   Sparkles,
   ShieldAlert,
   Activity,
+  Waves,
 } from 'lucide-react';
 import { soundFx } from '@/lib/audio-synth';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useRealVoice } from '@/hooks/use-real-voice';
+import { useWisprFlow } from '@/hooks/use-wispr-flow';
+import { WisprFlowModal } from '@/components/os/wispr-flow-modal';
 
 interface VoiceHUDProps {
   closeDialog: () => void;
@@ -31,6 +34,11 @@ const VoiceHUD = ({ closeDialog, onOpenChatWithSession }: VoiceHUDProps) => {
   const [typedInput, setTypedInput] = useState('');
   const [particles, setParticles] = useState<React.CSSProperties[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | undefined>(undefined);
+  const [isWisprModalOpen, setIsWisprModalOpen] = useState(false);
+
+  const wispr = useWisprFlow({
+    pollingIntervalMs: isWisprModalOpen ? 1500 : 3000,
+  });
 
   const [micPeaks, setMicPeaks] = useState<number[]>(() => new Array(24).fill(6));
   const micPeaksRef = useRef<number[]>(new Array(24).fill(6));
@@ -156,13 +164,30 @@ const VoiceHUD = ({ closeDialog, onOpenChatWithSession }: VoiceHUDProps) => {
             HERMES VOICE INTERACTION // WSL
           </span>
         </div>
-        <button
-          onClick={handleClose}
-          className="rounded-full border border-primary/30 p-1.5 text-primary hover:bg-primary/20 hover:text-accent transition-colors"
-          title="Close Voice HUD"
-        >
-          <X size={16} />
-        </button>
+        <div className="flex items-center gap-2">
+          {wispr.isInstalled && (
+            <button
+              type="button"
+              onClick={() => {
+                soundFx.playClick();
+                setIsWisprModalOpen(true);
+              }}
+              className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border border-sky-500/40 bg-sky-950/40 hover:bg-sky-900/60 text-[10px] font-mono text-sky-300 hover:text-sky-100 transition-all cursor-pointer shadow-[0_0_10px_rgba(56,189,248,0.2)]"
+              title="Open Wispr Flow Windows Dictation Engine Hub"
+            >
+              <Waves size={11} className={cn(wispr.isRunning ? "text-sky-400 animate-pulse" : "text-muted-foreground")} />
+              <span className="hidden sm:inline font-bold">WISPR FLOW</span>
+              <span className={cn("h-1.5 w-1.5 rounded-full", wispr.isRunning ? "bg-emerald-400 animate-ping" : "bg-muted-foreground")} />
+            </button>
+          )}
+          <button
+            onClick={handleClose}
+            className="rounded-full border border-primary/30 p-1.5 text-primary hover:bg-primary/20 hover:text-accent transition-colors"
+            title="Close Voice HUD"
+          >
+            <X size={16} />
+          </button>
+        </div>
       </div>
 
       {/* Dual Mode Switcher Bar */}
@@ -620,6 +645,46 @@ const VoiceHUD = ({ closeDialog, onOpenChatWithSession }: VoiceHUDProps) => {
         </div>
       )}
 
+      {/* Wispr Flow Live Dictation Ingest Banner */}
+      {wispr.lastDictation && (wispr.lastDictation.formattedText || wispr.lastDictation.pastedText) && (
+        <div className="w-full flex items-center justify-between px-3 py-1.5 rounded-xl border border-sky-500/40 bg-sky-950/30 text-xs font-mono my-1 shrink-0 animate-in fade-in duration-300">
+          <div className="flex items-center gap-2 overflow-hidden mr-2">
+            <Waves size={13} className="text-sky-400 shrink-0 animate-pulse" />
+            <span className="text-sky-300 font-bold text-[10px] shrink-0">WISPR FLOW:</span>
+            <span className="text-foreground/90 truncate font-sans text-[11px] italic">
+              &quot;{wispr.lastDictation.formattedText || wispr.lastDictation.pastedText}&quot;
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                const text = wispr.lastDictation!.formattedText || wispr.lastDictation!.pastedText;
+                soundFx.playClick();
+                setTypedInput(text);
+              }}
+              className="px-2 py-0.5 rounded bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/40 text-sky-300 text-[10px] font-bold cursor-pointer transition-colors"
+              title="Copy Wispr Flow dictation into text input"
+            >
+              INSERT
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const text = wispr.lastDictation!.formattedText || wispr.lastDictation!.pastedText;
+                soundFx.playClick();
+                sendVoiceQuery(text);
+              }}
+              className="px-2 py-0.5 rounded bg-sky-500 hover:bg-sky-400 text-black text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-[0_0_8px_rgba(56,189,248,0.4)]"
+              title="Send Wispr Flow dictation directly as Voice Command"
+            >
+              <Zap size={10} />
+              ASK ⚡
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Text Prompt Input Fallback */}
       <form onSubmit={handleTextSubmit} className="relative w-full mt-1.5 shrink-0">
         <Input
@@ -676,6 +741,21 @@ const VoiceHUD = ({ closeDialog, onOpenChatWithSession }: VoiceHUDProps) => {
           <button
             type="button"
             onClick={() => {
+              if (wispr.isInstalled) {
+                soundFx.playClick();
+                setIsWisprModalOpen(true);
+              } else {
+                sendVoiceQuery('Check Wispr Flow application status');
+              }
+            }}
+            className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg border border-sky-500/30 bg-sky-950/25 hover:bg-sky-900/40 hover:border-sky-400 text-[10px] font-mono text-sky-300 hover:text-sky-100 transition-all text-left truncate cursor-pointer"
+          >
+            <Waves size={12} className="text-sky-400 shrink-0" />
+            <span className="truncate">Wispr Flow Hub</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
               handleClose();
               if (onOpenChatWithSession) onOpenChatWithSession(currentSessionId);
             }}
@@ -683,14 +763,6 @@ const VoiceHUD = ({ closeDialog, onOpenChatWithSession }: VoiceHUDProps) => {
           >
             <ArrowRight size={12} className="text-primary shrink-0" />
             <span className="truncate">Open Full Chat</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => speakText('Voice synthesizer audio feedback calibrated and operational.')}
-            className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/20 hover:border-accent text-[10px] font-mono text-primary hover:text-accent transition-all text-left truncate cursor-pointer"
-          >
-            <Volume2 size={12} className="text-accent shrink-0" />
-            <span className="truncate">Calibrate Voice</span>
           </button>
           <button
             type="button"
@@ -705,6 +777,16 @@ const VoiceHUD = ({ closeDialog, onOpenChatWithSession }: VoiceHUDProps) => {
           </button>
         </div>
       </div>
+
+      {/* Cyberpunk Wispr Flow Engine Modal */}
+      <WisprFlowModal
+        isOpen={isWisprModalOpen}
+        onClose={() => setIsWisprModalOpen(false)}
+        onSelectPrompt={(text) => {
+          sendVoiceQuery(text);
+          setIsWisprModalOpen(false);
+        }}
+      />
     </div>
   );
 };

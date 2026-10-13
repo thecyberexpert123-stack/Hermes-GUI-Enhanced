@@ -57,13 +57,15 @@ import {
   DialogDescription,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Search, Zap, Layers, Command, Wrench, Monitor } from 'lucide-react';
+import { Search, Zap, Layers, Command, Wrench, Monitor, Waves, SlidersHorizontal } from 'lucide-react';
 import { SlashCommandAutocomplete } from './slash-command-autocomplete';
 import { HermesCommandsDialog } from './hermes-commands-dialog';
 import { searchHermesCommands, type HermesCommand } from '@/lib/hermes-commands';
 import { GodsEyeModal } from './gods-eye-modal';
 import { AutoSetupModal } from './auto-setup-modal';
 import { WindowsKaliBridgeModal } from './windows-kali-bridge';
+import { WisprFlowModal } from './wispr-flow-modal';
+import { useWisprFlow } from '@/hooks/use-wispr-flow';
 import { buildGodsEyeUrl, GODS_EYE_PRESETS, cleanGeographicQuery, type GeoLocation } from '@/lib/godseye';
 import { transcribeSarvamAudio } from '@/lib/sarvam';
 
@@ -106,10 +108,24 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
   const [isGodsEyeOpen, setIsGodsEyeOpen] = useState(false);
   const [isAutoSetupOpen, setIsAutoSetupOpen] = useState(false);
   const [isWindowsBridgeOpen, setIsWindowsBridgeOpen] = useState(false);
+  const [isWisprModalOpen, setIsWisprModalOpen] = useState(false);
   const [godsEyeTarget, setGodsEyeTarget] = useState<string | undefined>(undefined);
   const [godsEyeLocation, setGodsEyeLocation] = useState<GeoLocation | null>(null);
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
   const { toast } = useToast();
+
+  const {
+    isRunning: isWisprRunning,
+    lastDictation: wisprLastDictation,
+    autoSubmit: isWisprAutoSubmit,
+    triggerPtt: triggerWisprPtt,
+  } = useWisprFlow({
+    onAutoSubmit: (text) => {
+      if (text && text.trim()) {
+        sendQuery(text);
+      }
+    },
+  });
 
   const spawnKaliTerminal = async () => {
     soundFx.playClick(1100);
@@ -1158,6 +1174,24 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
             <span className="hidden xl:inline text-[11px] font-bold">WIN / KALI</span>
           </button>
 
+          {/* Wispr Flow Windows Dictation Engine */}
+          <button
+            onClick={() => {
+              soundFx.playClick(1100);
+              setIsWisprModalOpen(true);
+            }}
+            className={cn(
+              "flex items-center gap-1.5 rounded-lg border px-2 sm:px-2.5 py-1.5 text-xs font-mono transition-all shrink-0 cursor-pointer",
+              isWisprRunning
+                ? "border-accent/50 bg-accent/15 text-accent hover:bg-accent/25 hover:shadow-[0_0_15px_hsl(var(--accent)/0.35)]"
+                : "border-primary/20 bg-background/60 text-muted-foreground hover:bg-primary/20 hover:text-accent"
+            )}
+            title="Wispr Flow Windows Dictation Engine [Caps Lock]"
+          >
+            <Waves size={13} className={isWisprRunning ? "text-accent animate-pulse" : ""} />
+            <span className="hidden xl:inline text-[11px] font-bold">WISPR FLOW</span>
+          </button>
+
           <ThemeSwitcher />
           <WslTerminalDrawer />
 
@@ -1262,6 +1296,52 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
           </button>
         </div>
 
+        {/* Live Wispr Flow Dictation Ingestion Chip */}
+        {wisprLastDictation && wisprLastDictation.formattedText && (
+          <div className="w-full flex items-center justify-between gap-2 px-3 py-1.5 mb-1.5 rounded-2xl border border-accent/40 bg-accent/10 backdrop-blur-md text-[11px] font-mono animate-in fade-in slide-in-from-bottom-2">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <Waves size={13} className="text-accent shrink-0 animate-pulse" />
+              <span className="text-accent font-bold shrink-0">WISPR FLOW:</span>
+              <span className="text-foreground/90 truncate italic font-sans">&ldquo;{wisprLastDictation.formattedText}&rdquo;</span>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  soundFx.playClick(1000);
+                  setInput(wisprLastDictation.formattedText);
+                }}
+                className="px-2 py-0.5 rounded-lg bg-primary/20 hover:bg-primary/30 text-[10px] text-primary font-bold transition-all cursor-pointer"
+                title="Insert text into prompt"
+              >
+                INSERT
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  soundFx.playClick(1200);
+                  sendQuery(wisprLastDictation.formattedText);
+                }}
+                className="px-2 py-0.5 rounded-lg bg-accent/30 hover:bg-accent/40 text-[10px] text-accent font-bold transition-all cursor-pointer"
+                title="Send directly to Hermes"
+              >
+                SEND ⚡
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  soundFx.playClick(1000);
+                  setIsWisprModalOpen(true);
+                }}
+                className="p-1 text-muted-foreground hover:text-foreground cursor-pointer"
+                title="Open Wispr Flow Control Center"
+              >
+                <SlidersHorizontal size={12} />
+              </button>
+            </div>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="relative w-full">
           {/* Autocomplete Popover */}
           <SlashCommandAutocomplete
@@ -1294,7 +1374,7 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleInputKeyDown}
               placeholder={isLoading ? "Hermes is processing query via WSL..." : "Command Hermes Agent (type / for commands, or ask anything)..."}
-              className="h-12 w-full rounded-full border-none bg-transparent pr-28 pl-[124px] text-sm font-sans focus-visible:ring-0 placeholder:text-muted-foreground/70"
+              className="h-12 w-full rounded-full border-none bg-transparent pr-28 pl-[160px] text-sm font-sans focus-visible:ring-0 placeholder:text-muted-foreground/70"
               disabled={isLoading}
             />
             <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
@@ -1336,6 +1416,24 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
               title="Browse All 65+ Hermes Slash Commands & Skills [⚡]"
             >
               <Zap size={14} className="text-accent" />
+            </Button>
+
+            {/* Wispr Flow Dictation Trigger */}
+            <Button
+              type="button"
+              size="icon"
+              className={cn(
+                "absolute left-[116px] top-1/2 -translate-y-1/2 h-9 w-9 rounded-full border border-accent/40 bg-transparent text-accent transition-all duration-300 hover:bg-accent/20 hover:text-accent hover:border-accent hover:shadow-[0_0_15px_hsl(var(--accent)/0.3)]",
+                isWisprRunning && "border-accent text-accent"
+              )}
+              onClick={() => {
+                soundFx.playClick(1000);
+                setIsWisprModalOpen(true);
+              }}
+              disabled={isLoading}
+              title="Wispr Flow Windows Engine [Caps Lock]"
+            >
+              <Waves size={15} className={isWisprRunning ? "animate-pulse" : ""} />
             </Button>
 
             <Button
@@ -1588,6 +1686,19 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
         isOpen={isWindowsBridgeOpen}
         onOpenChange={setIsWindowsBridgeOpen}
         onTriggerAutoSetup={() => setIsAutoSetupOpen(true)}
+      />
+
+      {/* Wispr Flow Windows Engine Modal */}
+      <WisprFlowModal
+        isOpen={isWisprModalOpen}
+        onClose={() => setIsWisprModalOpen(false)}
+        onSelectPrompt={(promptText, autoExec) => {
+          if (autoExec) {
+            sendQuery(promptText);
+          } else {
+            setInput(promptText);
+          }
+        }}
       />
     </div>
   );
