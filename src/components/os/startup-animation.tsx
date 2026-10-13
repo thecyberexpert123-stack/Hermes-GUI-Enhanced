@@ -158,7 +158,7 @@ export default function StartupAnimation({ onComplete }: StartupAnimationProps) 
   // Step through the 15 stages
   useEffect(() => {
     let stageIndex = 0;
-    const baseInterval = 380 / speedMultiplier;
+    const baseInterval = 100 / speedMultiplier;
 
     const interval = setInterval(() => {
       if (stageIndex < bootStages.length) {
@@ -166,21 +166,23 @@ export default function StartupAnimation({ onComplete }: StartupAnimationProps) 
         setCompletedStages((prev) => [...prev, stageIndex]);
         soundFx.playBootPhase(stageIndex);
         setStageBurst(true);
-        setTimeout(() => setStageBurst(false), 180);
+        setTimeout(() => setStageBurst(false), 120);
         stageIndex++;
       } else {
         clearInterval(interval);
-        // Play success chime & voice debrief
-        soundFx.playTaskSuccess();
-        setIsVoiceWelcomeActive(true);
-        soundFx.speakText(
-          'Hermes Mark-XV neural architecture online. All fifteen subsystems nominal. Welcome, operator.',
-          () => setIsVoiceWelcomeActive(false)
-        );
+        // Play success chime & voice debrief asynchronously without blocking completion
+        try {
+          soundFx.playTaskSuccess();
+          setIsVoiceWelcomeActive(true);
+          soundFx.speakText(
+            'Hermes Mark-XV neural architecture online. All fifteen subsystems nominal. Welcome, operator.',
+            () => setIsVoiceWelcomeActive(false)
+          );
+        } catch {}
 
         setTimeout(() => {
           handleFinish();
-        }, 1200);
+        }, 350);
       }
     }, baseInterval);
 
@@ -197,7 +199,11 @@ export default function StartupAnimation({ onComplete }: StartupAnimationProps) 
   const progressPercent = Math.min(100, Math.round(((currentStage + 1) / 15) * 100));
 
   return (
-    <div className="relative flex h-screen w-screen flex-col justify-between overflow-hidden bg-background text-primary select-none font-headline px-3 py-2 sm:px-5 sm:py-2.5">
+    <div
+      onClick={() => handleFinish()}
+      data-testid="startup-animation-root"
+      className="relative flex h-screen w-screen flex-col justify-between overflow-hidden bg-background text-primary select-none font-headline px-3 py-2 sm:px-5 sm:py-2.5 cursor-pointer"
+    >
       {/* Background Cybernetic Dot Grid & Radial Vignette */}
       <div className="pointer-events-none absolute inset-0 z-0">
         <div

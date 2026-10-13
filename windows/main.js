@@ -122,13 +122,13 @@ async function initializeHermesEnvironment() {
     updateSplash(4, 'NEURAL COCKPIT ACTIVE. ENGAGING...');
     setTimeout(() => {
       if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.loadURL(activeUrl);
+        mainWindow.loadURL(`${activeUrl}?electron=1&skipBoot=1`);
       }
     }, 600);
   } else {
     updateSplash(4, 'STARTUP TIMEOUT: ATTEMPTING DIRECT CONNECT...');
     if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.loadURL(STUDIO_URL);
+      mainWindow.loadURL(`${STUDIO_URL}?electron=1&skipBoot=1`);
     }
   }
 }
@@ -258,13 +258,18 @@ function createWindow() {
     return { action: 'deny' };
   });
 
-  // Handle network / loading errors gracefully with automatic retry
+  // Handle network / loading errors gracefully with automatic retry while keeping splash visible
   mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
-    if (validatedURL.includes('3001')) {
-      console.warn('Endpoint not ready yet, retrying in 2 seconds...', errorDescription);
+    if (validatedURL && validatedURL.includes('3001')) {
+      console.warn('Endpoint not ready yet, reloading splash & retrying in 2 seconds...', errorDescription);
+      try {
+        mainWindow.loadFile(path.join(__dirname, 'splash.html')).then(() => {
+          updateSplash(4, 'CONNECTING TO HERMES COCKPIT... RETRYING [PORT 3001]...');
+        }).catch(() => {});
+      } catch {}
       setTimeout(() => {
         if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.loadURL(STUDIO_URL);
+          mainWindow.loadURL(`${STUDIO_URL}?electron=1&skipBoot=1`);
         }
       }, 2000);
     }
