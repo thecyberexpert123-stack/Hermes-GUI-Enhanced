@@ -22,8 +22,65 @@ export interface UseRealVoiceOptions {
   wakeWord?: string;
 }
 
-// Phonetically tolerant regex matching for "Hermes"
-const WAKE_WORD_REGEX = /\b(hermes|her mes|her mess|hermis|hermas|hey hermes|hi hermes|ok hermes|hello hermes)\b/i;
+// Check if running inside Electron desktop container
+export const isElectronEnv = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  return (
+    navigator.userAgent.includes('Electron') ||
+    !!(window as any).process?.versions?.electron ||
+    !!(window as any).electron
+  );
+};
+
+// Phonetically tolerant regex matching for "Hermes" and "Jarvis" + STT variations
+const WAKE_WORD_REGEX =
+  /\b(hermes|her mes|her mess|hermis|hermas|harmes|hermez|helmes|hermies|ermes|harness|jarvis|jarviz|javice|jarviss|hey hermes|hi hermes|ok hermes|hello hermes|hey jarvis|hi jarvis|ok jarvis|hello jarvis|हर्मिस|हर्मेस|जार्विस)\b/i;
+
+const WAKE_WORD_TOKENS = new Set([
+  'hermes',
+  'hermis',
+  'hermas',
+  'hermez',
+  'harmes',
+  'helmes',
+  'hermies',
+  'ermes',
+  'harness',
+  'jarvis',
+  'jarviz',
+  'javice',
+  'jarviss',
+  'हर्मिस',
+  'हर्मेस',
+  'जार्विस',
+]);
+
+export function parseWakeWord(rawText: string): { matched: boolean; commandAfterWake: string } {
+  if (!rawText) return { matched: false, commandAfterWake: '' };
+
+  const normalized = rawText
+    .toLowerCase()
+    .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"'’]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (WAKE_WORD_REGEX.test(normalized)) {
+    const stripped = normalized
+      .replace(WAKE_WORD_REGEX, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return { matched: true, commandAfterWake: stripped };
+  }
+
+  const words = normalized.split(' ');
+  const hasToken = words.some((w) => WAKE_WORD_TOKENS.has(w));
+  if (hasToken) {
+    const stripped = words.filter((w) => !WAKE_WORD_TOKENS.has(w)).join(' ').trim();
+    return { matched: true, commandAfterWake: stripped };
+  }
+
+  return { matched: false, commandAfterWake: '' };
+}
 
 export function useRealVoice(options: UseRealVoiceOptions = {}) {
   const {
@@ -32,7 +89,7 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
     onTranscriptReady,
     skipApiQuery = false,
     autoSpeakResponse = true,
-    initialMode = 'manual',
+    initialMode = 'auto',
     wakeWord = 'Hermes',
   } = options;
 
@@ -85,6 +142,7 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
   const wakeWordTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const awokenTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const vadClipTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const listeningTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const activeTranscriptRef = useRef('');
   const modeRef = useRef<VoiceMode>(mode);
@@ -153,6 +211,8 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
           mimeType = 'audio/webm;codecs=opus';
         } else if (MediaRecorder.isTypeSupported('audio/webm')) {
           mimeType = 'audio/webm';
+        } else if (MediaRecorder.isTypeSupported('audio/ogg')) {
+          mimeType = 'audio/ogg';
         }
       }
       const recorder = mimeType
@@ -177,13 +237,15 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
 
         const cleanType = (recorder.mimeType || 'audio/webm').split(';')[0].trim();
         const clipBlob = new Blob(chunks, { type: cleanType });
-        if (clipBlob.size < 600) return;
+        if (clipBlob.size < 120) return;
 
         isVadProcessingRef.current = true;
         try {
           const recognized = await transcribeSarvamAudio(clipBlob);
           const clean = (recognized || '').trim();
-          if (clean && WAKE_WORD_REGEX.test(clean)) {
+          const { matched, commandAfterWake } = parseWakeWord(clean);
+
+          if (matched) {
             // Wake-word detected!
             isAwokenRef.current = true;
             setIsWakeWordDetected(true);
@@ -194,13 +256,12 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
               setIsWakeWordDetected(false);
             }, 3000);
 
-            const commandAfterWake = clean.replace(WAKE_WORD_REGEX, '').trim();
             if (commandAfterWake.length > 2) {
               activeTranscriptRef.current = commandAfterWake;
               setTranscript(commandAfterWake);
               sendVoiceQueryRef.current(commandAfterWake);
             } else {
-              // User only said "Hermes" or wake word: transition to listening mode to capture the command!
+              // User only said "Hermes" or "Jarvis": immediately transition to listening mode to capture the command!
               startListeningRef.current();
             }
           }
@@ -304,7 +365,7 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
           }
 
           const avg = sum / dataArray.length / 255;
-          const active = avg > 0.02 || peakVal > 18;
+          const active = avg > 0.012 || peakVal > 14;
           const db =
             avg > 0.002 ? Math.max(-54, Math.min(-0.5, 20 * Math.log10(avg * 2.2))) : -54;
 
@@ -315,7 +376,7 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
 
           const now = Date.now();
 
-          // 1. Manual or Active Listening VAD: Automatically stop listening after 1.8s of silence
+          // 1. Manual or Active Listening VAD: Automatically stop listening after 1.4s of silence
           if (statusRef.current === 'listening') {
             if (active) {
               if (!speechStartTimeRef.current) {
@@ -323,12 +384,16 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
               }
               hasSpokenRef.current = true;
               lastSpokenTimestampRef.current = now;
+              if (listeningTimeoutRef.current) {
+                clearTimeout(listeningTimeoutRef.current);
+                listeningTimeoutRef.current = null;
+              }
             } else if (hasSpokenRef.current && lastSpokenTimestampRef.current > 0) {
               const spokeDuration = lastSpokenTimestampRef.current - speechStartTimeRef.current;
               const silenceDuration = now - lastSpokenTimestampRef.current;
               if (
-                spokeDuration > 350 &&
-                silenceDuration >= 1800 &&
+                spokeDuration > 250 &&
+                silenceDuration >= 1400 &&
                 !isStoppingRef.current &&
                 !hasSubmittedRef.current
               ) {
@@ -353,7 +418,7 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
             } else if (isVadClipRecordingRef.current && vadMonitoringLastSpeechRef.current > 0) {
               const silenceDuration = now - vadMonitoringLastSpeechRef.current;
               const totalClipDuration = now - vadMonitoringStartRef.current;
-              if (silenceDuration >= 1200 || totalClipDuration >= 4500) {
+              if (silenceDuration >= 600 || totalClipDuration >= 4000) {
                 stopVadClipRecordingRef.current();
               }
             }
@@ -533,7 +598,8 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
   // Send voice query to Hermes in WSL
   const sendVoiceQuery = useCallback(
     async (queryText: string) => {
-      const cleanQuery = queryText.replace(WAKE_WORD_REGEX, '').trim();
+      const { commandAfterWake } = parseWakeWord(queryText);
+      const cleanQuery = (commandAfterWake || queryText.replace(WAKE_WORD_REGEX, '')).trim();
       if (!cleanQuery) {
         isProcessingRef.current = false;
         hasSubmittedRef.current = false;
@@ -715,10 +781,12 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
       return;
     }
 
+    const isElectron = isElectronEnv();
     const SpeechRecognition =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      !isElectron &&
+      ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
 
-    // If Web Speech API is available (e.g. Chrome browser), use continuous recognition
+    // If Web Speech API is available in a standard browser (NOT Electron), use continuous recognition
     if (SpeechRecognition) {
       try {
         const recognition = new SpeechRecognition();
@@ -747,9 +815,10 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
           const rawSpoken = (finalStr || interimStr).trim();
           if (!rawSpoken) return;
 
-          // 1. If currently in standby monitoring, check for wake-word "Hermes"
+          // 1. If currently in standby monitoring, check for wake-word "Hermes" or "Jarvis"
           if (!isAwokenRef.current) {
-            if (WAKE_WORD_REGEX.test(rawSpoken)) {
+            const { matched, commandAfterWake } = parseWakeWord(rawSpoken);
+            if (matched) {
               isAwokenRef.current = true;
               setIsWakeWordDetected(true);
               soundFx.playWakeWordChime();
@@ -772,7 +841,6 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
                 }
               }, 8000);
 
-              const commandAfterWake = rawSpoken.replace(WAKE_WORD_REGEX, '').trim();
               if (commandAfterWake.length > 2) {
                 if (awokenTimeoutRef.current) clearTimeout(awokenTimeoutRef.current);
                 activeTranscriptRef.current = commandAfterWake;
@@ -784,7 +852,7 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
                     hasSubmittedRef.current = true;
                     sendVoiceQuery(activeTranscriptRef.current);
                   }
-                }, 2200);
+                }, 1800);
               }
             }
             return;
@@ -792,7 +860,8 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
 
           // 2. Already awoken, capture spoken command
           if (isAwokenRef.current) {
-            const commandText = rawSpoken.replace(WAKE_WORD_REGEX, '').trim();
+            const { commandAfterWake } = parseWakeWord(rawSpoken);
+            const commandText = (commandAfterWake || rawSpoken).trim();
             if (commandText) {
               if (awokenTimeoutRef.current) clearTimeout(awokenTimeoutRef.current);
               activeTranscriptRef.current = commandText;
@@ -805,7 +874,7 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
                   hasSubmittedRef.current = true;
                   sendVoiceQuery(activeTranscriptRef.current);
                 }
-              }, 2200);
+              }, 1800);
             }
           }
         };
@@ -816,6 +885,11 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
           if (errType === 'not-allowed' || errType === 'service-not-allowed') {
             setError('Microphone access denied by browser');
             setStatus('idle');
+          } else if (errType === 'network') {
+            // Google Cloud Speech network unavailable in Electron or restricted environments
+            // Fall back cleanly to ambient VAD
+            safelyDestroyRecognition();
+            setStatus('monitoring');
           }
         };
 
@@ -855,7 +929,7 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
       }
     }
 
-    // In Electron without SpeechRecognition: set to monitoring with live microphone dB visualization
+    // In Electron or browser without Web Speech: ambient VAD loop handles wake-word automatically
     setStatus('monitoring');
   }, [sendVoiceQuery, startAudioAnalysis, safelyDestroyRecognition]);
 
@@ -948,7 +1022,7 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
             type: cleanType,
           });
 
-          if (recordedBlob.size < 600) {
+          if (recordedBlob.size < 120) {
             stopAudioAnalysis();
             if (modeRef.current === 'auto') {
               setTimeout(() => {
@@ -1013,9 +1087,23 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
       console.warn('MediaRecorder init notice:', recErr);
     }
 
-    // 3. Optional: Concurrently run Web Speech API if supported for live interim words
+    // Set listening inactivity timeout watchdog (reverts to auto monitoring if user remains silent)
+    if (listeningTimeoutRef.current) clearTimeout(listeningTimeoutRef.current);
+    listeningTimeoutRef.current = setTimeout(() => {
+      if (statusRef.current === 'listening' && !hasSpokenRef.current && !hasSubmittedRef.current) {
+        if (modeRef.current === 'auto') {
+          startMonitoring();
+        } else {
+          setStatus('idle');
+        }
+      }
+    }, 7000);
+
+    // 3. Optional: Concurrently run Web Speech API if supported for live interim words outside Electron
+    const isElectron = isElectronEnv();
     const SpeechRecognition =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      !isElectron &&
+      ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
 
     if (SpeechRecognition) {
       try {
@@ -1112,6 +1200,7 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
     if (synthWatchdogRef.current) clearTimeout(synthWatchdogRef.current);
     if (thinkingWatchdogRef.current) clearTimeout(thinkingWatchdogRef.current);
     if (vadClipTimeoutRef.current) clearTimeout(vadClipTimeoutRef.current);
+    if (listeningTimeoutRef.current) clearTimeout(listeningTimeoutRef.current);
 
     isProcessingRef.current = false;
     hasSubmittedRef.current = false;

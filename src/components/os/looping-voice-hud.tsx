@@ -35,6 +35,7 @@ const LoopingVoiceHUD = ({ onSendMessage, isLoading: externalLoading }: LoopingV
     sendVoiceQuery,
     cancel,
   } = useRealVoice({
+    initialMode: 'auto',
     skipApiQuery: true,
     onTranscriptReady: (transcriptText) => {
       if (onSendMessage) {
@@ -140,7 +141,7 @@ const LoopingVoiceHUD = ({ onSendMessage, isLoading: externalLoading }: LoopingV
           )}
         >
           <Radio size={11} className={mode === 'auto' ? 'text-accent animate-pulse' : 'opacity-60'} />
-          <span>AUTO: "HERMES"</span>
+          <span>AUTO: &quot;HERMES&quot; / &quot;JARVIS&quot;</span>
         </button>
       </div>
 
