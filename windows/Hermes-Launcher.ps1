@@ -10,7 +10,7 @@
 [CmdletBinding()]
 param (
     [switch]$NoBrowser,
-    [switch]$NoTerminal,
+    [switch]$WithTerminal,
     [switch]$Restart,
     [switch]$Diagnostics
 )
@@ -40,7 +40,7 @@ Write-Host "──────────────────────�
 
 # 1. Check WSL2 Kali
 Write-Host " [+] Probing WSL2 Kali Linux Subsystem... " -NoNewline -ForegroundColor Yellow
-$wslCheck = wsl.exe -d $distro -e uname -s 2>$null
+$wslCheck = wsl.exe -d $distro -u thecyberexpert -e uname -s 2>$null
 if ($wslCheck -match "Linux") {
     Write-Host "[ONLINE: WSL2 KALI READY]" -ForegroundColor Green
 } else {
@@ -48,31 +48,31 @@ if ($wslCheck -match "Linux") {
     wsl.exe --status | Out-Null
 }
 
-# 2. Start services inside WSL Kali
+# 2. Start services inside WSL Kali (Hidden execution)
 if ($Restart) {
     Write-Host " [*] Restarting all services... " -NoNewline -ForegroundColor Yellow
-    wsl.exe -d $distro $manageScript restart | Out-Null
+    Start-Process "wsl.exe" -ArgumentList "-d $distro -u thecyberexpert bash -c `"$manageScript restart`"" -WindowStyle Hidden -Wait
     Write-Host "[RESTARTED]" -ForegroundColor Green
 } else {
     Write-Host " [*] Auto-Provisioning Services (Studio, God's Eye, Gateway)... " -NoNewline -ForegroundColor Yellow
-    wsl.exe -d $distro $manageScript start | Out-Null
+    Start-Process "wsl.exe" -ArgumentList "-d $distro -u thecyberexpert bash -c `"$manageScript start`"" -WindowStyle Hidden -Wait
     Write-Host "[DAEMONS ACTIVE]" -ForegroundColor Green
 }
 
 # 3. Verify HTTP Endpoints
 Write-Host " [*] Probing Port 3001 (Studio) & Port 4173 (God's Eye)... " -NoNewline -ForegroundColor Yellow
-$retries = 20
+$retries = 25
 $allUp = $false
 while ($retries-- -gt 0 -and -not $allUp) {
     try {
-        $r1 = Invoke-WebRequest -Uri $studioUrl -Method Head -TimeoutSec 1 -UseBasicParsing -ErrorAction Stop
-        $r2 = Invoke-WebRequest -Uri $godseyeUrl -Method Head -TimeoutSec 1 -UseBasicParsing -ErrorAction Stop
+        $r1 = Invoke-WebRequest -Uri $studioUrl -Method Head -TimeoutSec 2 -UseBasicParsing -ErrorAction Stop
+        $r2 = Invoke-WebRequest -Uri $godseyeUrl -Method Head -TimeoutSec 2 -UseBasicParsing -ErrorAction Stop
         if ($r1.StatusCode -eq 200 -and $r2.StatusCode -eq 200) {
             $allUp = $true
             break
         }
     } catch {
-        Start-Sleep -Milliseconds 800
+        Start-Sleep -Milliseconds 600
     }
 }
 Write-Host "[VERIFIED: 100% HEALTH]" -ForegroundColor Green
@@ -80,24 +80,26 @@ Write-Host "[VERIFIED: 100% HEALTH]" -ForegroundColor Green
 # 4. Deep Auto-Setup Handshake
 if ($Diagnostics) {
     Write-Host " [*] Executing Deep Auto-Setup & Self-Healing Handshake... " -NoNewline -ForegroundColor Yellow
-    wsl.exe -d $distro curl -s -X POST "$studioUrl/api/system/auto-setup" | Out-Null
+    wsl.exe -d $distro -u thecyberexpert curl -s -X POST "$studioUrl/api/system/auto-setup" | Out-Null
     Write-Host "[COMPLETED]" -ForegroundColor Green
 }
 
 Write-Host "`n[PHASE 2] MULTI-WINDOW ORCHESTRATION & LAUNCH" -ForegroundColor White
 Write-Host "─────────────────────────────────────────────────────────────" -ForegroundColor DarkGray
 
-# 5. Launch WSL Kali Terminal
-if (-not $NoTerminal) {
+# 5. Launch WSL Kali Terminal (only when explicitly requested with -WithTerminal)
+if ($WithTerminal) {
     Write-Host " [+] Launching WSL Kali Interactive Terminal Session... " -NoNewline -ForegroundColor Yellow
     $wtPath = "$env:LOCALAPPDATA\Microsoft\WindowsApps\wt.exe"
     if (Test-Path $wtPath) {
-        Start-Process $wtPath -ArgumentList "wsl.exe -d $distro ~"
+        Start-Process $wtPath -ArgumentList "wsl.exe -d $distro -u thecyberexpert ~"
         Write-Host "[WINDOWS TERMINAL]" -ForegroundColor Green
     } else {
-        Start-Process "cmd.exe" -ArgumentList "/c start `"Kali Linux - Hermes Agent OS`" wsl.exe -d $distro ~"
+        Start-Process "cmd.exe" -ArgumentList "/c start `"Kali Linux - Hermes Agent OS`" wsl.exe -d $distro -u thecyberexpert ~"
         Write-Host "[WSL CONSOLE]" -ForegroundColor Green
     }
+} else {
+    Write-Host " [+] Background Kali Subsystem Active (Hidden Runtime)." -ForegroundColor Cyan
 }
 
 # 6. Launch Standalone Independent Windows Desktop Application

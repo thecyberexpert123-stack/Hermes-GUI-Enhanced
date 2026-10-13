@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# HERMES AGENT OS — SERVICES CONTROLLER & DAEMON MANAGER (TMUX PERSISTENT)
+# HERMES AGENT OS — SERVICES CONTROLLER & DAEMON MANAGER (PERSISTENT & RESILIENT)
 # Autonomous manager for Next.js Studio (3001), God's Eye Cesium (4173),
 # and Hermes Gateway Daemon in WSL2 Kali Linux with 0.0.0.0 host binding.
 # ==============================================================================
+
+export PATH="/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin:$PATH"
 
 STUDIO_DIR="/home/thecyberexpert/.gemini/antigravity/scratch/studio"
 GODSEYE_DIR="/home/thecyberexpert/gods-eye-view"
@@ -13,7 +15,7 @@ mkdir -p "${RUN_DIR}"
 
 is_port_listening() {
   local port="$1"
-  curl -s --max-time 1 -o /dev/null "http://127.0.0.1:${port}/" 2>/dev/null
+  curl -s --max-time 1.5 -o /dev/null "http://127.0.0.1:${port}/" 2>/dev/null
 }
 
 start_studio() {
@@ -22,13 +24,22 @@ start_studio() {
   else
     echo "[*] Starting Next.js Studio on port 3001 (-H 0.0.0.0)..."
     tmux kill-session -t hermes-studio 2>/dev/null || true
+    fuser -k 3001/tcp 2>/dev/null || true
     cd "${STUDIO_DIR}"
     if [ -d ".next" ]; then
       tmux new-session -d -s hermes-studio "cd '${STUDIO_DIR}' && PORT=3001 npx next start -H 0.0.0.0 -p 3001 > '${RUN_DIR}/studio.log' 2>&1"
     else
       tmux new-session -d -s hermes-studio "cd '${STUDIO_DIR}' && PORT=3001 npm run dev > '${RUN_DIR}/studio.log' 2>&1"
     fi
-    echo "[+] Next.js Studio initiated in persistent tmux session 'hermes-studio'."
+
+    # Fallback to direct nohup daemon if tmux is unavailable
+    sleep 1
+    if ! tmux has-session -t hermes-studio 2>/dev/null && ! is_port_listening 3001; then
+      echo "[*] Tmux session absent; launching Next.js Studio via persistent nohup daemon..."
+      nohup bash -c "cd '${STUDIO_DIR}' && PORT=3001 npx next start -H 0.0.0.0 -p 3001" > "${RUN_DIR}/studio.log" 2>&1 &
+      echo $! > "${RUN_DIR}/studio.pid"
+    fi
+    echo "[+] Next.js Studio initiated in persistent session."
   fi
 }
 
@@ -39,8 +50,16 @@ start_godseye() {
     echo "[*] Starting God's Eye Cesium Viewer on port 4173 (--host 0.0.0.0)..."
     if [ -d "${GODSEYE_DIR}" ]; then
       tmux kill-session -t hermes-godseye 2>/dev/null || true
+      fuser -k 4173/tcp 2>/dev/null || true
       tmux new-session -d -s hermes-godseye "cd '${GODSEYE_DIR}' && npm run dev -- --host 0.0.0.0 --port 4173 > '${RUN_DIR}/godseye.log' 2>&1"
-      echo "[+] God's Eye Cesium initiated in persistent tmux session 'hermes-godseye'."
+
+      sleep 1
+      if ! tmux has-session -t hermes-godseye 2>/dev/null && ! is_port_listening 4173; then
+        echo "[*] Tmux session absent; launching God's Eye Viewer via persistent nohup daemon..."
+        nohup bash -c "cd '${GODSEYE_DIR}' && npm run dev -- --host 0.0.0.0 --port 4173" > "${RUN_DIR}/godseye.log" 2>&1 &
+        echo $! > "${RUN_DIR}/godseye.pid"
+      fi
+      echo "[+] God's Eye Cesium initiated in persistent session."
     else
       echo "[-] Warning: God's Eye directory not found at ${GODSEYE_DIR}"
     fi
@@ -67,7 +86,7 @@ start_gateway() {
   fi
 
   if [ "${gw_running}" = false ]; then
-    echo "[*] Starting Hermes Gateway Daemon in persistent tmux session..."
+    echo "[*] Starting Hermes Gateway Daemon..."
     local pyBin="${HERMES_DIR}/tools/python-3.14.7+20260901-linux-x64/bin/python3"
     local cliBin="${HERMES_DIR}/hermes-agent/hermes_cli/main.py"
     if [ -x "${pyBin}" ] && [ -f "${cliBin}" ]; then
