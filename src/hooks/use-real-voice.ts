@@ -64,6 +64,15 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
   const audioChunksRef = useRef<Blob[]>([]);
   const isRecordingAudioRef = useRef(false);
   const hasSpokenRef = useRef(false);
+  const speechStartTimeRef = useRef(0);
+  const lastSpokenTimestampRef = useRef(0);
+
+  const vadClipRecorderRef = useRef<MediaRecorder | null>(null);
+  const vadClipChunksRef = useRef<Blob[]>([]);
+  const isVadClipRecordingRef = useRef(false);
+  const vadMonitoringStartRef = useRef(0);
+  const vadMonitoringLastSpeechRef = useRef(0);
+  const isVadProcessingRef = useRef(false);
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -88,6 +97,10 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
 
   const startMonitoringRef = useRef<() => void>(() => {});
   const startListeningRef = useRef<() => void>(() => {});
+  const stopListeningRef = useRef<() => void>(() => {});
+  const startVadClipRecordingRef = useRef<() => void>(() => {});
+  const stopVadClipRecordingRef = useRef<() => void>(() => {});
+  const sendVoiceQueryRef = useRef<(q: string) => Promise<void>>(async () => {});
 
   useEffect(() => {
     modeRef.current = mode;
@@ -108,7 +121,107 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
     }
   }, []);
 
-  // Web Audio visualizer level loop (completely independent and non-blocking)
+  // Ambient VAD wake-word recorder functions (for Electron / standalone Windows without Web Speech API)
+  const stopVadClipRecording = useCallback(() => {
+    if (vadClipRecorderRef.current && vadClipRecorderRef.current.state === 'recording') {
+      try {
+        vadClipRecorderRef.current.stop();
+      } catch {}
+    }
+  }, []);
+
+  const cancelVadClipRecording = useCallback(() => {
+    if (vadClipRecorderRef.current && vadClipRecorderRef.current.state === 'recording') {
+      try {
+        vadClipRecorderRef.current.onstop = null;
+        vadClipRecorderRef.current.stop();
+      } catch {}
+    }
+    vadClipRecorderRef.current = null;
+    isVadClipRecordingRef.current = false;
+    vadClipChunksRef.current = [];
+    vadMonitoringStartRef.current = 0;
+    vadMonitoringLastSpeechRef.current = 0;
+  }, []);
+
+  const startVadClipRecording = useCallback(() => {
+    if (isVadClipRecordingRef.current || isVadProcessingRef.current || !mediaStreamRef.current) return;
+    try {
+      let mimeType = '';
+      if (typeof MediaRecorder !== 'undefined') {
+        if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+          mimeType = 'audio/webm;codecs=opus';
+        } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+          mimeType = 'audio/webm';
+        }
+      }
+      const recorder = mimeType
+        ? new MediaRecorder(mediaStreamRef.current, { mimeType })
+        : new MediaRecorder(mediaStreamRef.current);
+
+      vadClipChunksRef.current = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          vadClipChunksRef.current.push(e.data);
+        }
+      };
+
+      recorder.onstop = async () => {
+        isVadClipRecordingRef.current = false;
+        const chunks = vadClipChunksRef.current;
+        vadClipChunksRef.current = [];
+        vadMonitoringStartRef.current = 0;
+        vadMonitoringLastSpeechRef.current = 0;
+
+        if (chunks.length === 0 || statusRef.current !== 'monitoring') return;
+
+        const clipBlob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
+        if (clipBlob.size < 600) return;
+
+        isVadProcessingRef.current = true;
+        try {
+          const recognized = await transcribeSarvamAudio(clipBlob);
+          const clean = (recognized || '').trim();
+          if (clean && WAKE_WORD_REGEX.test(clean)) {
+            // Wake-word detected!
+            isAwokenRef.current = true;
+            setIsWakeWordDetected(true);
+            soundFx.playWakeWordChime();
+
+            if (wakeWordTimeoutRef.current) clearTimeout(wakeWordTimeoutRef.current);
+            wakeWordTimeoutRef.current = setTimeout(() => {
+              setIsWakeWordDetected(false);
+            }, 3000);
+
+            const commandAfterWake = clean.replace(WAKE_WORD_REGEX, '').trim();
+            if (commandAfterWake.length > 2) {
+              activeTranscriptRef.current = commandAfterWake;
+              setTranscript(commandAfterWake);
+              sendVoiceQueryRef.current(commandAfterWake);
+            } else {
+              // User only said "Hermes" or wake word: transition to listening mode to capture the command!
+              startListeningRef.current();
+            }
+          }
+        } catch (err) {
+          console.warn('Ambient VAD wake-word check notice:', err);
+        } finally {
+          isVadProcessingRef.current = false;
+        }
+      };
+
+      vadClipRecorderRef.current = recorder;
+      recorder.start(100);
+      isVadClipRecordingRef.current = true;
+    } catch (err) {
+      console.warn('Failed to start ambient VAD recorder:', err);
+    }
+  }, []);
+
+  startVadClipRecordingRef.current = startVadClipRecording;
+  stopVadClipRecordingRef.current = stopVadClipRecording;
+
+  // Web Audio visualizer & Voice Activity Detection (VAD) loop (completely independent and non-blocking)
   const startAudioAnalysis = useCallback(async (): Promise<MediaStream | null> => {
     try {
       if (typeof window === 'undefined' || !navigator.mediaDevices?.getUserMedia) return null;
@@ -171,9 +284,50 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
           setInputDb(db.toFixed(1));
           setIsVoiceActive(active);
 
-          // Track voice presence for silence detection
-          if (active && statusRef.current === 'listening') {
-            hasSpokenRef.current = true;
+          const now = Date.now();
+
+          // 1. Manual or Active Listening VAD: Automatically stop listening after 1.8s of silence
+          if (statusRef.current === 'listening') {
+            if (active) {
+              if (!speechStartTimeRef.current) {
+                speechStartTimeRef.current = now;
+              }
+              hasSpokenRef.current = true;
+              lastSpokenTimestampRef.current = now;
+            } else if (hasSpokenRef.current && lastSpokenTimestampRef.current > 0) {
+              const spokeDuration = lastSpokenTimestampRef.current - speechStartTimeRef.current;
+              const silenceDuration = now - lastSpokenTimestampRef.current;
+              if (
+                spokeDuration > 350 &&
+                silenceDuration >= 1800 &&
+                !isStoppingRef.current &&
+                !hasSubmittedRef.current
+              ) {
+                hasSpokenRef.current = false;
+                lastSpokenTimestampRef.current = 0;
+                speechStartTimeRef.current = 0;
+                stopListeningRef.current();
+              }
+            }
+          }
+
+          // 2. Electron / Ambient Auto-Mode VAD: Detect speech onset and capture ambient wake-word clip
+          if (statusRef.current === 'monitoring' && !isRecognitionRunningRef.current) {
+            if (active) {
+              if (!vadMonitoringStartRef.current) {
+                vadMonitoringStartRef.current = now;
+              }
+              vadMonitoringLastSpeechRef.current = now;
+              if (!isVadClipRecordingRef.current && !isVadProcessingRef.current) {
+                startVadClipRecordingRef.current();
+              }
+            } else if (isVadClipRecordingRef.current && vadMonitoringLastSpeechRef.current > 0) {
+              const silenceDuration = now - vadMonitoringLastSpeechRef.current;
+              const totalClipDuration = now - vadMonitoringStartRef.current;
+              if (silenceDuration >= 1200 || totalClipDuration >= 4500) {
+                stopVadClipRecordingRef.current();
+              }
+            }
           }
 
           animationFrameRef.current = requestAnimationFrame(updateMeter);
@@ -189,6 +343,10 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
   }, []);
 
   const stopAudioAnalysis = useCallback(() => {
+    cancelVadClipRecording();
+    hasSpokenRef.current = false;
+    speechStartTimeRef.current = 0;
+    lastSpokenTimestampRef.current = 0;
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = null;
@@ -207,11 +365,12 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
     setFrequencyBars(new Array(24).fill(4));
     setInputDb('-54.0');
     setIsVoiceActive(false);
-  }, []);
+  }, [cancelVadClipRecording]);
 
   // Safe SpeechRecognition cleanup helper
   const safelyDestroyRecognition = useCallback((): Promise<void> => {
     return new Promise((resolve) => {
+      cancelVadClipRecording();
       if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
         try {
           mediaRecorderRef.current.stop();
@@ -443,12 +602,17 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
     [sessionId, skipApiQuery, onTranscriptReady, autoSpeakResponse, speakText, onQueryComplete, safelyDestroyRecognition]
   );
 
+  sendVoiceQueryRef.current = sendVoiceQuery;
+
   // Stop listening manually (flush MediaRecorder and trigger transcription/query)
   const stopListening = useCallback(() => {
     if (silenceTimeoutRef.current) {
       clearTimeout(silenceTimeoutRef.current);
       silenceTimeoutRef.current = null;
     }
+    hasSpokenRef.current = false;
+    speechStartTimeRef.current = 0;
+    lastSpokenTimestampRef.current = 0;
 
     if (recognitionRef.current) {
       try {
@@ -466,10 +630,20 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
         hasSubmittedRef.current = true;
         sendVoiceQuery(activeTranscriptRef.current);
       } else if (!activeTranscriptRef.current) {
-        setStatus('idle');
+        if (modeRef.current === 'auto') {
+          setTimeout(() => {
+            if (modeRef.current === 'auto' && !unmountedRef.current) {
+              startMonitoringRef.current();
+            }
+          }, 400);
+        } else {
+          setStatus('idle');
+        }
       }
     }
   }, [sendVoiceQuery, stopAudioAnalysis]);
+
+  stopListeningRef.current = stopListening;
 
   // Continuous ambient monitoring for Wake-Word "Hermes" (Automatic Mode)
   const startMonitoring = useCallback(async () => {
@@ -652,6 +826,7 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
   const startListening = useCallback(async () => {
     if (typeof window === 'undefined' || unmountedRef.current) return;
 
+    cancelVadClipRecording();
     setError(null);
     setTranscript('');
     setInterimTranscript('');
@@ -661,6 +836,8 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
     hasSubmittedRef.current = false;
     isProcessingRef.current = false;
     hasSpokenRef.current = false;
+    speechStartTimeRef.current = 0;
+    lastSpokenTimestampRef.current = 0;
     audioChunksRef.current = [];
 
     soundFx.playClick(1000);
@@ -715,7 +892,15 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
 
           if (chunks.length === 0) {
             stopAudioAnalysis();
-            setStatus('idle');
+            if (modeRef.current === 'auto') {
+              setTimeout(() => {
+                if (modeRef.current === 'auto' && !unmountedRef.current) {
+                  startMonitoringRef.current();
+                }
+              }, 400);
+            } else {
+              setStatus('idle');
+            }
             return;
           }
 
@@ -725,7 +910,15 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
 
           if (recordedBlob.size < 600) {
             stopAudioAnalysis();
-            setStatus('idle');
+            if (modeRef.current === 'auto') {
+              setTimeout(() => {
+                if (modeRef.current === 'auto' && !unmountedRef.current) {
+                  startMonitoringRef.current();
+                }
+              }, 400);
+            } else {
+              setStatus('idle');
+            }
             return;
           }
 
@@ -745,14 +938,30 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
               sendVoiceQuery(clean);
             } else {
               setInterimTranscript('');
-              setStatus('idle');
+              if (modeRef.current === 'auto') {
+                setTimeout(() => {
+                  if (modeRef.current === 'auto' && !unmountedRef.current) {
+                    startMonitoringRef.current();
+                  }
+                }, 400);
+              } else {
+                setStatus('idle');
+              }
             }
           } catch (sttErr: any) {
             console.warn('Sarvam STT fallback notice:', sttErr);
             stopAudioAnalysis();
             setInterimTranscript('');
             setError(sttErr.message || 'Speech-to-text failed');
-            setStatus('idle');
+            if (modeRef.current === 'auto') {
+              setTimeout(() => {
+                if (modeRef.current === 'auto' && !unmountedRef.current) {
+                  startMonitoringRef.current();
+                }
+              }, 800);
+            } else {
+              setStatus('idle');
+            }
           }
         };
 

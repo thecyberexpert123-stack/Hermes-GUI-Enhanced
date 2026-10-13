@@ -381,7 +381,7 @@ const VoiceHUD = ({ closeDialog, onOpenChatWithSession }: VoiceHUDProps) => {
         {isWakeWordDetected ? (
           <span className="text-accent font-bold animate-pulse font-sans">⚡ &quot;HERMES&quot; AWOKEN! RECORDING COMMAND...</span>
         ) : status === 'listening' ? (
-          <span className="text-destructive font-bold animate-pulse font-sans">● RECORDING AUDIO... (CLICK TO STOP &amp; EXECUTE)</span>
+          <span className="text-destructive font-bold animate-pulse font-sans">● RECORDING AUDIO... (AUTO-DETECTS PAUSE OR CLICK TO FINISH)</span>
         ) : status === 'thinking' ? (
           <span className="text-accent font-bold animate-pulse font-sans">⚡ TRANSCRIBING &amp; RUNNING INFERENCE IN WSL...</span>
         ) : status === 'speaking' ? (

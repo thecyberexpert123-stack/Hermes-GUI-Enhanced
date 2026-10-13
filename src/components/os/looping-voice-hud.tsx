@@ -31,6 +31,7 @@ const LoopingVoiceHUD = ({ onSendMessage, isLoading: externalLoading }: LoopingV
     wakeWord,
     startListening,
     stopListening,
+    startMonitoring,
     sendVoiceQuery,
     cancel,
   } = useRealVoice({
@@ -98,7 +99,7 @@ const LoopingVoiceHUD = ({ onSendMessage, isLoading: externalLoading }: LoopingV
     if (effectiveStatus === 'speaking') {
       cancel();
       if (mode === 'auto') {
-        setTimeout(startListening, 200);
+        setTimeout(startMonitoring, 200);
       }
       return;
     }

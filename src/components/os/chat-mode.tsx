@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import type { Message } from './chat-message';
 import ChatMessage from './chat-message';
 import { nanoid } from 'nanoid';
@@ -143,6 +143,33 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
   const barRecognitionRef = useRef<any>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const barAudioContextRef = useRef<AudioContext | null>(null);
+  const barAnalyserRef = useRef<AnalyserNode | null>(null);
+  const barStreamRef = useRef<MediaStream | null>(null);
+  const barAnimFrameRef = useRef<number | null>(null);
+
+  const stopBarAudioAnalysis = useCallback(() => {
+    if (barAnimFrameRef.current) {
+      cancelAnimationFrame(barAnimFrameRef.current);
+      barAnimFrameRef.current = null;
+    }
+    if (barStreamRef.current) {
+      barStreamRef.current.getTracks().forEach((t) => t.stop());
+      barStreamRef.current = null;
+    }
+    if (barAudioContextRef.current && barAudioContextRef.current.state !== 'closed') {
+      try {
+        barAudioContextRef.current.close();
+      } catch {}
+      barAudioContextRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      stopBarAudioAnalysis();
+    };
+  }, [stopBarAudioAnalysis]);
 
   // Listen for global 'hermes:open-godseye' custom event (from chat recon card or command palette)
   useEffect(() => {
@@ -227,6 +254,7 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
 
     // If currently recording with MediaRecorder or SpeechRecognition, stop and transcribe
     if (isRecordingInput) {
+      stopBarAudioAnalysis();
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
         try {
           mediaRecorderRef.current.stop();
@@ -244,7 +272,14 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
     // Try high-accuracy Sarvam Saaras AI Speech-to-Text via MediaRecorder first
     if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia && typeof MediaRecorder !== 'undefined') {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        });
+        barStreamRef.current = stream;
         audioChunksRef.current = [];
 
         const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
@@ -261,7 +296,7 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
         };
 
         recorder.onstop = async () => {
-          stream.getTracks().forEach((track) => track.stop());
+          stopBarAudioAnalysis();
           const blobType = recorder.mimeType || 'audio/webm';
           const audioBlob = new Blob(audioChunksRef.current, { type: blobType });
 
@@ -299,11 +334,69 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
         };
 
         mediaRecorderRef.current = recorder;
-        recorder.start();
+        recorder.start(100);
         setIsRecordingInput(true);
+
+        // Web Audio VAD: Auto-stop after 1.8s silence following speech
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioCtx) {
+          const audioCtx = new AudioCtx();
+          barAudioContextRef.current = audioCtx;
+          const analyser = audioCtx.createAnalyser();
+          analyser.fftSize = 128;
+          barAnalyserRef.current = analyser;
+          const source = audioCtx.createMediaStreamSource(stream);
+          source.connect(analyser);
+
+          const dataArray = new Uint8Array(analyser.frequencyBinCount);
+          let hasSpoken = false;
+          let speechStartTime = 0;
+          let lastSpokenTime = 0;
+
+          const checkVAD = () => {
+            if (!barAnalyserRef.current || !mediaRecorderRef.current || mediaRecorderRef.current.state !== 'recording') {
+              return;
+            }
+            barAnalyserRef.current.getByteFrequencyData(dataArray);
+            let sum = 0;
+            let peakVal = 0;
+            for (let i = 0; i < dataArray.length; i++) {
+              const v = dataArray[i];
+              if (v > peakVal) peakVal = v;
+              sum += v;
+            }
+            const avg = sum / dataArray.length / 255;
+            const active = avg > 0.02 || peakVal > 18;
+            const now = Date.now();
+
+            if (active) {
+              if (!speechStartTime) speechStartTime = now;
+              hasSpoken = true;
+              lastSpokenTime = now;
+            } else if (hasSpoken && lastSpokenTime > 0) {
+              const spokeDuration = lastSpokenTime - speechStartTime;
+              const silenceDuration = now - lastSpokenTime;
+              if (spokeDuration > 350 && silenceDuration >= 1800) {
+                if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+                  try {
+                    mediaRecorderRef.current.stop();
+                  } catch {}
+                }
+                setIsRecordingInput(false);
+                stopBarAudioAnalysis();
+                return;
+              }
+            }
+
+            barAnimFrameRef.current = requestAnimationFrame(checkVAD);
+          };
+
+          barAnimFrameRef.current = requestAnimationFrame(checkVAD);
+        }
+
         toast({
           title: "🎙️ Sarvam AI Voice Recording",
-          description: "Listening via Saaras model... Click mic again when finished speaking.",
+          description: "Listening via Saaras model... Auto-detects pause or click mic to finish.",
         });
         return;
       } catch (mediaErr) {
