@@ -225,7 +225,11 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
   const startAudioAnalysis = useCallback(async (): Promise<MediaStream | null> => {
     try {
       if (typeof window === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
-        setError('Microphone API not supported by browser environment.');
+        if (typeof window !== 'undefined' && !window.isSecureContext) {
+          setError('Microphone requires a secure origin (http://127.0.0.1:3001 or localhost). Please load via http://127.0.0.1:3001');
+        } else {
+          setError('Microphone API not supported by browser environment.');
+        }
         return null;
       }
       if (mediaStreamRef.current) return mediaStreamRef.current; // Already analyzing
@@ -247,7 +251,7 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
           console.warn('Microphone access failed:', basicErr);
           const name = basicErr?.name || '';
           if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
-            setError('Microphone access blocked. Enable microphone permissions in Windows Settings > Privacy.');
+            setError('Microphone access blocked. Check site permissions in browser address bar (lock icon) or Windows Settings.');
           } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
             setError('No microphone found. Please connect or enable an audio input device in Windows Sound settings.');
           } else if (name === 'NotReadableError' || name === 'TrackStartError') {

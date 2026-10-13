@@ -1,29 +1,58 @@
 const { app, BrowserWindow, Menu, Tray, shell, session, desktopCapturer } = require('electron');
 const path = require('path');
-const { execFile, spawn } = require('child_process');
+const { execFile, execFileSync, spawn } = require('child_process');
 const http = require('http');
+const net = require('net');
 const fs = require('fs');
 
 let mainWindow = null;
 let tray = null;
 let wslKeepAliveChild = null;
+let studioBridge = null;
+let godseyeBridge = null;
 
 const DISTRO = 'kali-linux';
 const STUDIO_PORT = 3001;
 const STUDIO_URL = 'http://127.0.0.1:3001';
 const MANAGE_SCRIPT = '/home/thecyberexpert/.gemini/antigravity/scratch/studio/scripts/manage-services.sh';
 
+// Query WSL eth0 IP early to register origin as secure in Chromium
+let wslIpCached = null;
+try {
+  const ipOut = execFileSync(
+    'wsl.exe',
+    ['-d', DISTRO, '-u', 'thecyberexpert', 'bash', '-c', "ip -4 addr show eth0 | grep -oP '(?<=inet\\s)\\d+(\\.\\d+){3}' | head -n 1"],
+    { timeout: 3500, windowsHide: true }
+  );
+  const ip = ipOut.toString().trim();
+  if (/^(\d{1,3}\.){3}\d{1,3}$/.test(ip)) {
+    wslIpCached = ip;
+  }
+} catch {}
+
 // 1. Configure audio autoplay policy & hardware flags before app ready
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
-app.commandLine.appendSwitch('use-fake-ui-for-media-stream');
 app.commandLine.appendSwitch('enable-features', 'AudioServiceOutOfProcess,WebRtcHideLocalIpsWithMdns');
 app.commandLine.appendSwitch('enable-speech-dispatcher');
 app.commandLine.appendSwitch('ignore-certificate-errors');
 
-// 2. Set application identity for Windows taskbar grouping
+// 2. Crucial: Treat all WSL local endpoints as Secure Contexts to unlock navigator.mediaDevices & microphone APIs
+const secureOrigins = [
+  'http://localhost:3001',
+  'http://127.0.0.1:3001',
+  'http://localhost:4173',
+  'http://127.0.0.1:4173',
+];
+if (wslIpCached) {
+  secureOrigins.push(`http://${wslIpCached}:3001`);
+  secureOrigins.push(`http://${wslIpCached}:4173`);
+}
+app.commandLine.appendSwitch('unsafely-treat-insecure-origin-as-secure', secureOrigins.join(','));
+
+// 3. Set application identity for Windows taskbar grouping
 app.setAppUserModelId('com.hermes.agent.os');
 
-// 3. Single instance lock (focus existing window if re-launched)
+// 4. Single instance lock (focus existing window if re-launched)
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
   app.quit();
@@ -149,18 +178,64 @@ function launchKaliTerminal() {
   }
 }
 
-// Multi-candidate server detector (127.0.0.1, localhost, and WSL eth0 virtual IP)
+// Transparent local TCP bridge from 127.0.0.1 on Windows host -> WSL eth0 IP
+// Unlocks window.isSecureContext === true and provides 100% reliable localhost access for microphone
+function setupLocalBridge(wslIp) {
+  if (!wslIp) return;
+
+  if (!studioBridge) {
+    try {
+      studioBridge = net.createServer((clientSocket) => {
+        const wslSocket = net.connect({ host: wslIp, port: 3001 }, () => {
+          clientSocket.pipe(wslSocket);
+          wslSocket.pipe(clientSocket);
+        });
+        wslSocket.on('error', () => clientSocket.destroy());
+        clientSocket.on('error', () => wslSocket.destroy());
+      });
+      studioBridge.on('error', () => {});
+      studioBridge.listen(3001, '127.0.0.1', () => {
+        console.log(`[SECURE BRIDGE] 127.0.0.1:3001 -> ${wslIp}:3001`);
+      });
+    } catch {}
+  }
+
+  if (!godseyeBridge) {
+    try {
+      godseyeBridge = net.createServer((clientSocket) => {
+        const wslSocket = net.connect({ host: wslIp, port: 4173 }, () => {
+          clientSocket.pipe(wslSocket);
+          wslSocket.pipe(clientSocket);
+        });
+        wslSocket.on('error', () => clientSocket.destroy());
+        clientSocket.on('error', () => wslSocket.destroy());
+      });
+      godseyeBridge.on('error', () => {});
+      godseyeBridge.listen(4173, '127.0.0.1', () => {
+        console.log(`[SECURE BRIDGE] 127.0.0.1:4173 -> ${wslIp}:4173`);
+      });
+    } catch {}
+  }
+}
+
+// Multi-candidate server detector (prioritizes 127.0.0.1 and localhost for Secure Context audio)
 async function waitForServer(maxAttempts = 35) {
-  let wslIp = null;
-  try {
-    const ipRes = await executeWslCommand("ip -4 addr show eth0 | grep -oP '(?<=inet\\s)\\d+(\\.\\d+){3}' | head -n 1");
-    if (ipRes.success && ipRes.stdout) {
-      const parsed = ipRes.stdout.trim();
-      if (/^(\d{1,3}\.){3}\d{1,3}$/.test(parsed)) {
-        wslIp = parsed;
+  let wslIp = wslIpCached;
+  if (!wslIp) {
+    try {
+      const ipRes = await executeWslCommand("ip -4 addr show eth0 | grep -oP '(?<=inet\\s)\\d+(\\.\\d+){3}' | head -n 1");
+      if (ipRes.success && ipRes.stdout) {
+        const parsed = ipRes.stdout.trim();
+        if (/^(\d{1,3}\.){3}\d{1,3}$/.test(parsed)) {
+          wslIp = parsed;
+        }
       }
-    }
-  } catch {}
+    } catch {}
+  }
+
+  if (wslIp) {
+    setupLocalBridge(wslIp);
+  }
 
   const candidateUrls = [STUDIO_URL, 'http://localhost:3001'];
   if (wslIp) {
@@ -432,6 +507,12 @@ app.whenReady().then(() => {
 });
 
 app.on('before-quit', () => {
+  if (studioBridge) {
+    try { studioBridge.close(); } catch {}
+  }
+  if (godseyeBridge) {
+    try { godseyeBridge.close(); } catch {}
+  }
   if (wslKeepAliveChild && !wslKeepAliveChild.killed) {
     try {
       wslKeepAliveChild.kill();

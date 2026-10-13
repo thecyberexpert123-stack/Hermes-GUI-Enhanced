@@ -269,6 +269,16 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
       return;
     }
 
+    // Ensure browser is operating in a Secure Context (required for microphone audio access)
+    if (typeof window !== 'undefined' && !window.isSecureContext) {
+      toast({
+        title: "Secure Origin Required for Microphone",
+        description: "Microphone access requires a secure origin (http://127.0.0.1:3001 or localhost). Please load via http://127.0.0.1:3001.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Try high-accuracy Sarvam Saaras AI Speech-to-Text via MediaRecorder first
     if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia && typeof MediaRecorder !== 'undefined') {
       try {
