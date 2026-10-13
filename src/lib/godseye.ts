@@ -183,15 +183,29 @@ export interface ResolvedTarget {
 export function cleanGeographicQuery(input: string): string {
   if (!input) return '';
   let q = input.trim();
-  // Strip trailing punctuation like ?, !, .
-  q = q.replace(/[?.!]+$/, '').trim();
+  // Strip trailing punctuation like ?, !, ., ,, ;
+  q = q.replace(/[?.!,;]+$/, '').trim();
   // Strip conversational suffixes like "using gods eye", "on gods eye", "in gods eye", "with gods eye", "via gods eye", "in godseye", "gods eye view"
   q = q.replace(/\s+(?:using|on|in|with|via)\s+god'?s\s*eye(?:\s*view)?.*$/i, '').trim();
   q = q.replace(/\s+god'?s\s*eye(?:\s*view)?.*$/i, '').trim();
-  // Strip leading conversational phrases
-  q = q.replace(/^(?:where\s+is|locate|find|show\s+me(?:\s+the\s+location\s+of)?|now\s+show(?:\s+me)?|show\s+the\s+entire|show\s+the|show|fly\s+to|take\s+me\s+to|navigate\s+to|coordinates\s+of|search\s+for|view)\s+/i, '').trim();
-  // Strip quotes
-  q = q.replace(/^["'`]|["'`]$/g, '').trim();
+  // Strip conversational polite greetings and prefixes
+  q = q.replace(/^(?:(?:hey|hi|hello|ok|okay)\s+)?(?:hermes|jarvis)[,\s]+/i, '').trim();
+  q = q.replace(/^(?:(?:can|could|would)\s+you\s+|please\s+)/i, '').trim();
+  // Strip leading action verbs and location question keywords
+  q = q.replace(/^(?:detect(?:\s+the)?\s+location\s+of|find(?:\s+the)?\s+location\s+of|check(?:\s+the)?\s+location\s+of|show(?:\s+the)?\s+location\s+of|search(?:\s+the)?\s+location\s+of|location\s+of)\s+/i, '').trim();
+  q = q.replace(/^(?:where\s+is|where\s+are|where's|locate|find|show\s+me(?:\s+the\s+location\s+of)?|now\s+show(?:\s+me)?|show\s+the\s+entire|show\s+the|show|fly\s+to|take\s+me\s+to|navigate\s+to|coordinates\s+of|search\s+for|view|satellite\s+view\s+of|zoom\s+in\s+to|zoom\s+into|look\s+at)\s+/i, '').trim();
+  // Strip trailing prepositions like "in", "on", "at", "with", "for"
+  q = q.replace(/\s+(?:in|on|with|using|via|at|for)$/i, '').trim();
+
+  // Strip leading "the" if followed by name (e.g. "the Eiffel Tower" -> "Eiffel Tower", "the Taj Mahal" -> "Taj Mahal")
+  if (/^the\s+/i.test(q) && !/^the\s+hague/i.test(q)) {
+    q = q.replace(/^the\s+/i, '').trim();
+  }
+
+  // If query is just general command words, treat as general view
+  if (/^(?:open|launch|start|show|view|activate|here|map|globe|recon)$/i.test(q)) {
+    return '';
+  }
 
   // Normalize common country aliases to canonical names
   const lower = q.toLowerCase();
@@ -209,6 +223,45 @@ export function cleanGeographicQuery(input: string): string {
     return COUNTRY_ALIASES[lower];
   }
   return q;
+}
+
+/**
+ * Detects if a query contains God's Eye or geospatial/location reconnaissance intent.
+ * Returns the cleaned target location name, or "" if opening God's Eye generally, or null if not geospatial.
+ */
+export function extractGodsEyeTarget(input: string): string | null {
+  if (!input) return null;
+  const trimmed = input.trim();
+
+  // 1. Explicit Slash Commands (/godseye, /locate, /geoview, /satellite, /osint-geo)
+  const slashMatch = trimmed.match(/^\/(?:godseye|locate|geoview|satellite|osint-geo)(?:\s+(.*))?$/i);
+  if (slashMatch) {
+    return cleanGeographicQuery(slashMatch[1] || '');
+  }
+
+  // 2. Explicit mentions of "God's Eye", "Gods Eye", "Godseye"
+  if (/\bgod'?s\s*eye\b|\bgodseye\b/i.test(trimmed)) {
+    let candidate = trimmed;
+    // Strip trailing suffixes first so "in God's eye" leaves no dangling prepositions
+    candidate = candidate.replace(/\s+(?:using|on|in|with|via)\s+god'?s\s*eye(?:\s*view)?.*$/i, '');
+    candidate = candidate.replace(/\s+god'?s\s*eye(?:\s*view)?.*$/i, '');
+    candidate = candidate.replace(/\b(?:open|launch|start|show|view|activate|switch\s+to|use)?\s*god'?s\s*eye(?:\s*view)?\s*(?:detect\s+location\s+of|detect\s+the\s+location\s+of|locate|find|show|view|on|at|for|of)?\s*/i, ' ');
+    candidate = cleanGeographicQuery(candidate);
+    return candidate; // returns target location or "" if general God's Eye launch
+  }
+
+  // 3. Conversational location detection & reconnaissance phrases (spoken in Voice Mode or Wispr Flow)
+  const geoPattern = /^(?:(?:hey\s+|ok\s+|okay\s+)?(?:hermes|jarvis)[,\s]+)?(?:(?:can|could|would)\s+you\s+|please\s+)?(?:detect(?:\s+the)?\s+location\s+of|find(?:\s+the)?\s+location\s+of|check(?:\s+the)?\s+location\s+of|where(?:\s+is|\s+are|\s+'s)(?:\s+the)?|locate(?:\s+the)?|find(?:\s+the)?|show\s+me(?:\s+the)?(?:\s+location\s+of)?|fly\s+to|take\s+me\s+to|navigate\s+to|coordinates\s+of|satellite\s+view\s+of|zoom\s+in\s+to|zoom\s+into|look\s+at)\s+([^?.!]+)/i;
+  const match = trimmed.match(geoPattern);
+  if (match && match[1]) {
+    const rawTarget = match[1].trim();
+    // Exclude non-geographic system keywords
+    if (!/^(?:system|battery|memory|cpu|ram|daemon|gateway|port|service|wifi|internet|network|audio|model|status|readiness|skills?|tools?|config)$/i.test(rawTarget)) {
+      return cleanGeographicQuery(rawTarget);
+    }
+  }
+
+  return null;
 }
 
 /**

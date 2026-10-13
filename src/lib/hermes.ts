@@ -2,7 +2,7 @@ import { execFile, exec, execSync } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
-import { resolveLocationCoordinates, GODS_EYE_PRESETS, buildGodsEyeUrl, cleanGeographicQuery } from './godseye';
+import { resolveLocationCoordinates, GODS_EYE_PRESETS, buildGodsEyeUrl, cleanGeographicQuery, extractGodsEyeTarget } from './godseye';
 
 export const execFileAsync = promisify(execFile);
 export const execAsync = promisify(exec);
@@ -746,32 +746,10 @@ ${lines.join('\n') || 'All external interfaces secured behind WSL2 NAT perimeter
   // ==========================================
   // GOD'S EYE VIEW 3D GEOSPATIAL INTELLIGENCE & OSINT HANDLER
   // ==========================================
-  const isGodsEyeCmd =
-    trimmed.toLowerCase().startsWith('/godseye') ||
-    trimmed.toLowerCase().startsWith('/locate') ||
-    trimmed.toLowerCase().startsWith('/geoview') ||
-    trimmed.toLowerCase().startsWith('/satellite') ||
-    trimmed.toLowerCase().startsWith('/osint-geo');
+  const extractedGodsEyeTarget = extractGodsEyeTarget(trimmed);
 
-  const geoQueryMatch = trimmed.match(
-    /^(?:where is|locate|find|show me(?:\s+the location of)?|now show(?: me)?|show the entire|show|fly to|take me to|navigate to|coordinates of|god'?s eye(?:\s+view)?(?: of| for)?)\s+([^?.!]+)/i
-  );
-
-  const usingGodsEyeMatch = trimmed.match(
-    /^(.+?)\s+(?:using|on|in|with|via)\s+god'?s\s*eye(?:\s*view)?.*$/i
-  );
-
-  if (isGodsEyeCmd || geoQueryMatch || usingGodsEyeMatch) {
-    let rawTarget = '';
-    if (isGodsEyeCmd) {
-      rawTarget = trimmed.replace(/^\/(?:godseye|locate|geoview|satellite|osint-geo)\s*/i, '').trim();
-    } else if (usingGodsEyeMatch) {
-      rawTarget = usingGodsEyeMatch[1].trim();
-    } else if (geoQueryMatch) {
-      rawTarget = geoQueryMatch[1].trim();
-    }
-
-    const targetArg = cleanGeographicQuery(rawTarget);
+  if (extractedGodsEyeTarget !== null) {
+    const targetArg = extractedGodsEyeTarget;
 
     if (!targetArg) {
       // General God's Eye platform status & preset target directory

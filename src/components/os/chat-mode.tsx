@@ -66,7 +66,7 @@ import { AutoSetupModal } from './auto-setup-modal';
 import { WindowsKaliBridgeModal } from './windows-kali-bridge';
 import { WisprFlowModal } from './wispr-flow-modal';
 import { useWisprFlow } from '@/hooks/use-wispr-flow';
-import { buildGodsEyeUrl, GODS_EYE_PRESETS, cleanGeographicQuery, type GeoLocation } from '@/lib/godseye';
+import { buildGodsEyeUrl, GODS_EYE_PRESETS, cleanGeographicQuery, extractGodsEyeTarget, type GeoLocation } from '@/lib/godseye';
 import { transcribeSarvamAudio } from '@/lib/sarvam';
 
 const Corner = (props: React.HTMLAttributes<SVGElement>) => (
@@ -976,28 +976,16 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
       return;
     }
 
-    // Intercept God's Eye commands and natural language geographic requests
-    const isGodsEyeSlash = queryText.match(/^\/(?:godseye|locate|geoview|satellite|osint-geo)(?:\s+(.*))?$/i);
-    const geoQueryMatch = queryText.match(/^(?:where is|locate|find|show me(?:\s+the location of)?|now show(?: me)?|show the entire|show|fly to|take me to|navigate to|coordinates of|god'?s eye(?:\s+view)?(?: of| for)?)\s+([^?.!]+)/i);
-    const usingGodsEyeMatch = queryText.match(/^(.+?)\s+(?:using|on|in|with|via)\s+god'?s\s*eye(?:\s*view)?.*$/i);
+    // Intercept God's Eye commands and natural language geographic requests (Spoken Voice & Wispr Flow)
+    const godsEyeExtracted = extractGodsEyeTarget(queryText);
 
-    if (isGodsEyeSlash || geoQueryMatch || usingGodsEyeMatch) {
+    if (godsEyeExtracted !== null) {
       soundFx.playClick(1100);
-      let rawLoc = '';
-      if (isGodsEyeSlash) {
-        rawLoc = isGodsEyeSlash[1]?.trim() || '';
-      } else if (usingGodsEyeMatch) {
-        rawLoc = usingGodsEyeMatch[1]?.trim() || '';
-      } else if (geoQueryMatch) {
-        rawLoc = geoQueryMatch[1]?.trim() || '';
-      }
-
-      const loc = cleanGeographicQuery(rawLoc);
       setIsGodsEyeOpen(true);
-      if (loc) {
-        setGodsEyeTarget(loc);
+      if (godsEyeExtracted) {
+        setGodsEyeTarget(godsEyeExtracted);
         // Dispatch to active modal if already mounted
-        window.dispatchEvent(new CustomEvent('hermes:open-godseye', { detail: { query: loc } }));
+        window.dispatchEvent(new CustomEvent('hermes:open-godseye', { detail: { query: godsEyeExtracted } }));
       }
     }
 
@@ -1018,9 +1006,7 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
       /\b(?:task|tasks|tool|tools|protocol|execute|execution|run|exec|scan|audit|diagnos|test|check|verify|analyze|analysis|monitor|inspect|benchmark|probe|search|find|list|show|get|create|make|build|generate|write|code|script|fix|debug|patch|install|setup|configure|config|start|stop|restart|kill|terminal|bash|sh|python|wsl|kali|system|process|processes|memory|cpu|disk|ports?|sockets?|network|perimeter|ping|curl|git|docker|boost|overclock|flush|arsenal|skills?|yolo)\b/i.test(queryText.trim());
 
     const isToolTask =
-      !isGodsEyeSlash &&
-      !geoQueryMatch &&
-      !usingGodsEyeMatch &&
+      godsEyeExtracted === null &&
       (isProtocol ||
        queryText.startsWith('/') ||
        isExplicitTask ||
@@ -1130,6 +1116,32 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
           content: answer,
         };
         setMessages((prev) => [...prev, aiMessage]);
+      }
+
+      // Check if response contains a ```godseye block with resolved coordinates and auto-fly
+      if (answer && answer.includes('```godseye')) {
+        const godseyeMatch = answer.match(/```godseye\s*([\s\S]*?)```/);
+        if (godseyeMatch) {
+          try {
+            const payload = JSON.parse(godseyeMatch[1]);
+            if (payload && Number.isFinite(Number(payload.lat)) && Number.isFinite(Number(payload.lon))) {
+              setIsGodsEyeOpen(true);
+              const targetLoc: GeoLocation = {
+                name: payload.target || payload.name || 'OSINT Target',
+                lat: Number(payload.lat),
+                lon: Number(payload.lon),
+                alt: Number(payload.alt) || 1800,
+                pitch: Number(payload.pitch) || -45,
+                heading: Number(payload.heading) || 0,
+                formattedAddress: payload.address || payload.formattedAddress || payload.target,
+                category: payload.category,
+              };
+              setGodsEyeLocation(targetLoc);
+              setGodsEyeTarget(payload.target || payload.name);
+              window.dispatchEvent(new CustomEvent('hermes:open-godseye', { detail: { target: payload } }));
+            }
+          } catch {}
+        }
       }
 
       if (activeTaskInstanceId) {

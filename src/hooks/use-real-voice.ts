@@ -8,6 +8,7 @@ import {
   stopSarvamAudio,
   transcribeSarvamAudio,
 } from '@/lib/sarvam';
+import { extractGodsEyeTarget } from '@/lib/godseye';
 
 export type VoiceMode = 'manual' | 'auto';
 export type VoiceStatus = 'idle' | 'monitoring' | 'listening' | 'thinking' | 'speaking' | 'error';
@@ -625,6 +626,16 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
       setStatus('thinking');
       soundFx.playClick(880);
 
+      // Instantly trigger God's Eye if voice query contains location/reconnaissance intent
+      const godsEyeTarget = extractGodsEyeTarget(cleanQuery);
+      if (godsEyeTarget !== null && typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('hermes:open-godseye', {
+            detail: godsEyeTarget ? { query: godsEyeTarget } : {},
+          })
+        );
+      }
+
       // Cleanly shutdown recognition before inference
       await safelyDestroyRecognition();
 
@@ -658,6 +669,19 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
 
         const data = await res.json();
         const aiAnswer = data.content || 'Hermes completed the command.';
+
+        // Parse any ```godseye telemetry block from assistant and fly to target
+        if (aiAnswer.includes('```godseye') && typeof window !== 'undefined') {
+          const match = aiAnswer.match(/```godseye\s*([\s\S]*?)```/);
+          if (match) {
+            try {
+              const payload = JSON.parse(match[1]);
+              if (payload && Number.isFinite(Number(payload.lat)) && Number.isFinite(Number(payload.lon))) {
+                window.dispatchEvent(new CustomEvent('hermes:open-godseye', { detail: { target: payload } }));
+              }
+            } catch {}
+          }
+        }
 
         setResponse(aiAnswer);
         soundFx.playMessagePing();

@@ -26,6 +26,8 @@ import { Button } from '@/components/ui/button';
 import { useRealVoice } from '@/hooks/use-real-voice';
 import { useWisprFlow } from '@/hooks/use-wispr-flow';
 import { WisprFlowModal } from '@/components/os/wispr-flow-modal';
+import { GodsEyeModal } from './gods-eye-modal';
+import { extractGodsEyeTarget, type GeoLocation } from '@/lib/godseye';
 
 interface VoiceHUDProps {
   closeDialog: () => void;
@@ -37,13 +39,59 @@ const VoiceHUD = ({ closeDialog, onOpenChatWithSession }: VoiceHUDProps) => {
   const [particles, setParticles] = useState<React.CSSProperties[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | undefined>(undefined);
   const [isWisprModalOpen, setIsWisprModalOpen] = useState(false);
+  const [isGodsEyeOpen, setIsGodsEyeOpen] = useState(false);
+  const [godsEyeTarget, setGodsEyeTarget] = useState<string | undefined>(undefined);
+  const [godsEyeLocation, setGodsEyeLocation] = useState<GeoLocation | null>(null);
+
+  // Global listener for 'hermes:open-godseye' custom event
+  useEffect(() => {
+    const handleGlobalOpenGodsEye = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const detail = customEvent.detail;
+      setIsGodsEyeOpen(true);
+      if (detail?.target && Number.isFinite(Number(detail.target.lat)) && Number.isFinite(Number(detail.target.lon))) {
+        const t = detail.target;
+        const targetLoc: GeoLocation = {
+          name: t.target || t.name || 'OSINT Target',
+          lat: Number(t.lat),
+          lon: Number(t.lon),
+          alt: t.alt ? Number(t.alt) : 1800,
+          pitch: t.pitch ? Number(t.pitch) : -45,
+          heading: t.heading ? Number(t.heading) : 0,
+          formattedAddress: t.address || t.formattedAddress,
+          category: t.category,
+        };
+        setGodsEyeLocation(targetLoc);
+        setGodsEyeTarget(t.target || t.name);
+      } else if (detail?.query) {
+        setGodsEyeTarget(detail.query);
+        setGodsEyeLocation(null);
+      }
+    };
+
+    window.addEventListener('hermes:open-godseye', handleGlobalOpenGodsEye);
+    return () => window.removeEventListener('hermes:open-godseye', handleGlobalOpenGodsEye);
+  }, []);
+
+  const triggerVoiceQueryWithGeo = (text: string) => {
+    const loc = extractGodsEyeTarget(text);
+    if (loc !== null) {
+      soundFx.playClick(1100);
+      setIsGodsEyeOpen(true);
+      if (loc) {
+        setGodsEyeTarget(loc);
+      }
+      window.dispatchEvent(new CustomEvent('hermes:open-godseye', { detail: loc ? { query: loc } : {} }));
+    }
+    sendVoiceQuery(text);
+  };
 
   const wispr = useWisprFlow({
     pollingIntervalMs: isWisprModalOpen ? 1500 : 3000,
     onAutoSubmit: (text) => {
       if (text && text.trim()) {
         soundFx.playChirp();
-        sendVoiceQuery(text.trim());
+        triggerVoiceQueryWithGeo(text.trim());
       }
     },
   });
@@ -111,7 +159,7 @@ const VoiceHUD = ({ closeDialog, onOpenChatWithSession }: VoiceHUDProps) => {
   const handleTextSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!typedInput.trim()) return;
-    sendVoiceQuery(typedInput);
+    triggerVoiceQueryWithGeo(typedInput);
     setTypedInput('');
   };
 
@@ -688,7 +736,7 @@ const VoiceHUD = ({ closeDialog, onOpenChatWithSession }: VoiceHUDProps) => {
               type="button"
               onClick={() => {
                 const text = wispr.approveDictation();
-                if (text) sendVoiceQuery(text);
+                if (text) triggerVoiceQueryWithGeo(text);
               }}
               className="px-2.5 py-0.5 rounded bg-accent hover:bg-accent/80 text-background text-[10px] font-bold flex items-center gap-1 cursor-pointer shadow-[0_0_10px_hsl(var(--accent)/0.5)]"
             >
@@ -872,9 +920,21 @@ const VoiceHUD = ({ closeDialog, onOpenChatWithSession }: VoiceHUDProps) => {
         isOpen={isWisprModalOpen}
         onClose={() => setIsWisprModalOpen(false)}
         onSelectPrompt={(text) => {
-          sendVoiceQuery(text);
+          triggerVoiceQueryWithGeo(text);
           setIsWisprModalOpen(false);
         }}
+      />
+
+      {/* 3D God's Eye Geospatial Reconnaissance Modal */}
+      <GodsEyeModal
+        isOpen={isGodsEyeOpen}
+        onClose={() => {
+          soundFx.playClick();
+          setIsGodsEyeOpen(false);
+          setGodsEyeLocation(null);
+        }}
+        initialLocation={godsEyeLocation}
+        targetQuery={godsEyeTarget}
       />
     </div>
   );
