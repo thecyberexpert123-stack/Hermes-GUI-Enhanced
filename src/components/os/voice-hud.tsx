@@ -557,9 +557,41 @@ const VoiceHUD = ({ closeDialog, onOpenChatWithSession }: VoiceHUDProps) => {
             <p className="text-accent font-semibold italic">"{transcript}"</p>
           </div>
         ) : error ? (
-          <div className="flex items-center justify-center gap-2 text-destructive font-mono text-[11px]">
-            <AlertCircle size={14} />
-            <span>{error}</span>
+          <div className="flex flex-col items-center justify-center gap-1.5 text-destructive font-mono text-[11px] py-1">
+            <div className="flex items-center gap-1.5 text-center">
+              <AlertCircle size={14} className="shrink-0 text-destructive" />
+              <span className="font-semibold text-destructive">{error}</span>
+            </div>
+            <div className="flex items-center gap-2 mt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  fetch('/api/system/windows-bridge', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'open-mic-settings' }),
+                  }).catch(() => {});
+                }}
+                className="px-2.5 py-1 rounded-md bg-destructive/20 hover:bg-destructive/30 border border-destructive/50 text-[10px] text-destructive font-mono cursor-pointer transition-colors flex items-center gap-1 font-bold"
+                title="Open Windows Microphone Privacy Settings"
+              >
+                <span>⚙️ FIX IN WINDOWS SETTINGS</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (mode === 'auto') {
+                    startMonitoring();
+                  } else {
+                    startListening();
+                  }
+                }}
+                className="px-2.5 py-1 rounded-md bg-primary/20 hover:bg-primary/30 border border-primary/50 text-[10px] text-primary font-mono cursor-pointer transition-colors font-bold"
+                title="Retry microphone initialization"
+              >
+                <span>RETRY MIC</span>
+              </button>
+            </div>
           </div>
         ) : (
           <span className="text-muted-foreground text-[10px] sm:text-[11px] font-mono leading-relaxed">

@@ -12,11 +12,24 @@ param (
     [switch]$NoBrowser,
     [switch]$WithTerminal,
     [switch]$Restart,
-    [switch]$Diagnostics
+    [switch]$Diagnostics,
+    [switch]$Visible
 )
 
-$Host.UI.RawUI.WindowTitle = "HERMES AGENT OS — Autonomous Windows Launcher & Kali Engine"
-Clear-Host
+# 1. Instantly hide PowerShell console window if launched interactively (unless -Visible passed)
+if (-not $Visible) {
+    try {
+        Add-Type -Name Win32Window -Namespace Win32Functions -MemberDefinition @"
+[DllImport("user32.dll")]
+public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
+"@ -ErrorAction SilentlyContinue
+
+        $hwnd = (Get-Process -Id $PID).MainWindowHandle
+        if ($hwnd -ne [IntPtr]::Zero) {
+            [Win32Functions.Win32Window]::ShowWindowAsync($hwnd, 0) | Out-Null # SW_HIDE = 0
+        }
+    } catch {}
+}
 
 Write-Host @"
 
@@ -109,10 +122,10 @@ if (-not $NoBrowser) {
     $electronExe = "C:\Users\anish\Hermes-Agent-OS\node_modules\electron\dist\electron.exe"
 
     if (Test-Path $appExe) {
-        Start-Process $appExe -WorkingDirectory "C:\Users\anish\Hermes-Agent-OS"
+        Start-Process $appExe -WorkingDirectory "C:\Users\anish\Hermes-Agent-OS" -WindowStyle Hidden
         Write-Host "[STANDALONE WINDOWS APP]" -ForegroundColor Green
     } elseif (Test-Path $electronExe) {
-        Start-Process $electronExe -ArgumentList "." -WorkingDirectory "C:\Users\anish\Hermes-Agent-OS"
+        Start-Process $electronExe -ArgumentList "." -WorkingDirectory "C:\Users\anish\Hermes-Agent-OS" -WindowStyle Hidden
         Write-Host "[NATIVE ELECTRON COCKPIT]" -ForegroundColor Green
     } else {
         $browserPaths = @(
@@ -127,10 +140,10 @@ if (-not $NoBrowser) {
             }
         }
         if ($selectedBrowser) {
-            Start-Process $selectedBrowser -ArgumentList "--app=`"$studioUrl`" --window-size=1680,1000 --name=`"Hermes Agent OS`""
+            Start-Process $selectedBrowser -ArgumentList "--app=`"$studioUrl`" --window-size=1680,1000 --name=`"Hermes Agent OS`"" -WindowStyle Hidden
             Write-Host "[BORDERLESS APP WINDOW]" -ForegroundColor Green
         } else {
-            Start-Process $studioUrl
+            Start-Process $studioUrl -WindowStyle Hidden
             Write-Host "[DEFAULT BROWSER]" -ForegroundColor Green
         }
     }

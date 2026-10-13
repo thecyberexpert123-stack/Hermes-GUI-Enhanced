@@ -224,16 +224,40 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
   // Web Audio visualizer & Voice Activity Detection (VAD) loop (completely independent and non-blocking)
   const startAudioAnalysis = useCallback(async (): Promise<MediaStream | null> => {
     try {
-      if (typeof window === 'undefined' || !navigator.mediaDevices?.getUserMedia) return null;
+      if (typeof window === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+        setError('Microphone API not supported by browser environment.');
+        return null;
+      }
       if (mediaStreamRef.current) return mediaStreamRef.current; // Already analyzing
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        });
+      } catch (optErr) {
+        console.warn('Advanced audio constraints not supported by device, trying default audio:', optErr);
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch (basicErr: any) {
+          console.warn('Microphone access failed:', basicErr);
+          const name = basicErr?.name || '';
+          if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+            setError('Microphone access blocked. Enable microphone permissions in Windows Settings > Privacy.');
+          } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+            setError('No microphone found. Please connect or enable an audio input device in Windows Sound settings.');
+          } else if (name === 'NotReadableError' || name === 'TrackStartError') {
+            setError('Microphone is busy or locked by another application. Please close apps using the microphone.');
+          } else {
+            setError(`Microphone unavailable: ${basicErr?.message || 'Access denied or device error'}`);
+          }
+          return null;
+        }
+      }
       if (unmountedRef.current) {
         stream.getTracks().forEach((t) => t.stop());
         return null;
@@ -338,6 +362,16 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
       return stream;
     } catch (err: any) {
       console.warn('Microphone stream error:', err);
+      const name = err?.name || '';
+      if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+        setError('Microphone access blocked. Enable microphone permissions in Windows Settings > Privacy.');
+      } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+        setError('No microphone found. Please connect or enable an audio input device in Windows Sound settings.');
+      } else if (name === 'NotReadableError' || name === 'TrackStartError') {
+        setError('Microphone is busy or locked by another application. Please close apps using the microphone.');
+      } else {
+        setError(`Microphone unavailable: ${err?.message || 'Access denied or device error'}`);
+      }
       return null;
     }
   }, []);
@@ -671,7 +705,7 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
 
     const stream = await startAudioAnalysis();
     if (!stream) {
-      setError('Microphone access unavailable');
+      setError((prev) => prev || 'Microphone access unavailable. Check Windows privacy permissions.');
       setStatus('idle');
       return;
     }
@@ -845,7 +879,7 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
     // 1. Start audio visualization loop (captures microphone MediaStream)
     const stream = await startAudioAnalysis();
     if (!stream) {
-      setError('Could not access microphone');
+      setError((prev) => prev || 'Could not access microphone. Check Windows privacy permissions.');
       setStatus('idle');
       return;
     }

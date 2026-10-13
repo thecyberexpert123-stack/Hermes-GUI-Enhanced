@@ -272,13 +272,18 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
     // Try high-accuracy Sarvam Saaras AI Speech-to-Text via MediaRecorder first
     if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia && typeof MediaRecorder !== 'undefined') {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-          },
-        });
+        let stream: MediaStream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+            },
+          });
+        } catch {
+          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        }
         barStreamRef.current = stream;
         audioChunksRef.current = [];
 
@@ -399,8 +404,46 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
           description: "Listening via Saaras model... Auto-detects pause or click mic to finish.",
         });
         return;
-      } catch (mediaErr) {
-        console.warn('MediaRecorder init failed, falling back to Web Speech API:', mediaErr);
+      } catch (mediaErr: any) {
+        console.warn('MediaRecorder / getUserMedia init failed:', mediaErr);
+        const name = mediaErr?.name || '';
+        let fixMsg = "Microphone permission required or browser does not expose audio capture.";
+        if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+          fixMsg = "Microphone access blocked by Windows. Turn ON 'Let desktop apps access your microphone' in Windows Settings.";
+        } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+          fixMsg = "No audio input device detected. Please connect or enable a microphone in Windows Sound settings.";
+        } else if (name === 'NotReadableError') {
+          fixMsg = "Microphone is currently in use or locked by another Windows app.";
+        }
+
+        const SpeechRecognition =
+          typeof window !== 'undefined'
+            ? (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+            : null;
+
+        if (!SpeechRecognition) {
+          toast({
+            title: "Microphone Access Notice",
+            description: fixMsg,
+            variant: "destructive",
+            action: (
+              <button
+                type="button"
+                onClick={() => {
+                  fetch('/api/system/windows-bridge', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'open-mic-settings' }),
+                  }).catch(() => {});
+                }}
+                className="px-2 py-1 text-xs font-mono font-bold rounded bg-destructive/30 hover:bg-destructive/50 text-white border border-destructive/60 cursor-pointer"
+              >
+                Fix in Windows
+              </button>
+            ),
+          });
+          return;
+        }
       }
     }
 
@@ -412,9 +455,24 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
 
     if (!SpeechRecognition) {
       toast({
-        title: "Speech Recognition Unavailable",
-        description: "Microphone permission required or browser does not expose audio capture.",
+        title: "Microphone Capture Unavailable",
+        description: "Microphone permission required. Please enable microphone access in Windows Settings.",
         variant: "destructive",
+        action: (
+          <button
+            type="button"
+            onClick={() => {
+              fetch('/api/system/windows-bridge', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'open-mic-settings' }),
+              }).catch(() => {});
+            }}
+            className="px-2 py-1 text-xs font-mono font-bold rounded bg-destructive/30 hover:bg-destructive/50 text-white border border-destructive/60 cursor-pointer"
+          >
+            Fix in Windows
+          </button>
+        ),
       });
       return;
     }

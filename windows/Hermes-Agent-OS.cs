@@ -21,7 +21,8 @@ namespace HermesDesktopLauncher
                     {
                         WorkingDirectory = appDir,
                         UseShellExecute = false,
-                        CreateNoWindow = true
+                        CreateNoWindow = true,
+                        WindowStyle = ProcessWindowStyle.Hidden
                     };
                     Process.Start(psi);
                     return;
@@ -32,7 +33,8 @@ namespace HermesDesktopLauncher
                 {
                     WorkingDirectory = appDir,
                     UseShellExecute = false,
-                    CreateNoWindow = true
+                    CreateNoWindow = true,
+                    WindowStyle = ProcessWindowStyle.Hidden
                 };
                 Process.Start(fallback);
             }

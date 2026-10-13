@@ -1,6 +1,6 @@
 const { app, BrowserWindow, Menu, Tray, shell, session, desktopCapturer } = require('electron');
 const path = require('path');
-const { exec, spawn } = require('child_process');
+const { execFile, spawn } = require('child_process');
 const http = require('http');
 const fs = require('fs');
 
@@ -15,7 +15,9 @@ const MANAGE_SCRIPT = '/home/thecyberexpert/.gemini/antigravity/scratch/studio/s
 
 // 1. Configure audio autoplay policy & hardware flags before app ready
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
-app.commandLine.appendSwitch('enable-features', 'AudioServiceOutOfProcess');
+app.commandLine.appendSwitch('use-fake-ui-for-media-stream');
+app.commandLine.appendSwitch('enable-features', 'AudioServiceOutOfProcess,WebRtcHideLocalIpsWithMdns');
+app.commandLine.appendSwitch('enable-speech-dispatcher');
 app.commandLine.appendSwitch('ignore-certificate-errors');
 
 // 2. Set application identity for Windows taskbar grouping
@@ -74,12 +76,12 @@ function probeHttp(url, timeoutMs = 1500) {
   });
 }
 
-// Execute command in WSL2 Kali with windowsHide: true (completely silent, no CMD popups)
+// Execute command in WSL2 Kali directly via execFile (0 shell processes, no cmd.exe/powershell.exe popups)
 function executeWslCommand(cmd) {
   return new Promise((resolve) => {
-    const fullCmd = `wsl.exe -d ${DISTRO} -u thecyberexpert bash -c "${cmd.replace(/"/g, '\\"')}"`;
-    exec(
-      fullCmd,
+    execFile(
+      'wsl.exe',
+      ['-d', DISTRO, '-u', 'thecyberexpert', 'bash', '-c', cmd],
       {
         timeout: 40000,
         windowsHide: true,
@@ -88,9 +90,9 @@ function executeWslCommand(cmd) {
       (err, stdout, stderr) => {
         if (err) {
           // Fallback: try default WSL without -d if DISTRO name differed
-          const fallbackCmd = `wsl.exe -u thecyberexpert bash -c "${cmd.replace(/"/g, '\\"')}"`;
-          exec(
-            fallbackCmd,
+          execFile(
+            'wsl.exe',
+            ['-u', 'thecyberexpert', 'bash', '-c', cmd],
             { timeout: 35000, windowsHide: true },
             (err2, stdout2, stderr2) => {
               resolve({ success: !err2, stdout: stdout2 || stdout, stderr: stderr2 || stderr });
@@ -398,10 +400,10 @@ function createWindow() {
 
 app.whenReady().then(() => {
   // 1. Grant media & microphone permissions automatically
-  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
     callback(true);
   });
-  session.defaultSession.setPermissionCheckHandler(() => true);
+  session.defaultSession.setPermissionCheckHandler((webContents, permission, requestingOrigin, details) => true);
 
   // 2. Implement displayMedia handler for Windows Host Desktop Audio loopback capture
   session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {

@@ -17,66 +17,86 @@ interface WindowsTelemetry {
   isStandaloneAppRunning: boolean;
 }
 
+let cachedTelemetry: WindowsTelemetry | null = null;
+let lastTelemetryTime = 0;
+
 /**
  * Execute command against Windows host via powershell.exe cleanly from /mnt/c
+ * Uses -WindowStyle Hidden and -NonInteractive to guarantee NO console popups on Windows desktop
  */
 async function execOnWindows(psCommand: string): Promise<string> {
-  const { stdout } = await execAsync(`powershell.exe -NoProfile -Command "${psCommand.replace(/"/g, '`"')}" < /dev/null`, {
-    cwd: '/mnt/c',
-    timeout: 8000,
-  });
+  const { stdout } = await execAsync(
+    `powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command "${psCommand.replace(/"/g, '`"')}" < /dev/null`,
+    {
+      cwd: '/mnt/c',
+      timeout: 8000,
+      windowsHide: true,
+    }
+  );
   return stdout.trim();
 }
 
 /**
  * Launch detached background process on Windows host via powershell.exe Start-Process
+ * 100% hidden runtime
  */
 async function launchOnWindows(psCommand: string): Promise<void> {
-  await execAsync(`powershell.exe -NoProfile -Command "${psCommand.replace(/"/g, '`"')}" < /dev/null`, {
-    cwd: '/mnt/c',
-    timeout: 8000,
-  });
+  await execAsync(
+    `powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command "${psCommand.replace(/"/g, '`"')}" < /dev/null`,
+    {
+      cwd: '/mnt/c',
+      timeout: 8000,
+      windowsHide: true,
+    }
+  );
 }
 
 /**
- * GET: Query Windows Host Telemetry & Subsystems
+ * GET: Query Windows Host Telemetry & Subsystems (Cached & 100% Hidden)
  */
 export async function GET() {
+  const now = Date.now();
+  if (cachedTelemetry && now - lastTelemetryTime < 15000) {
+    return NextResponse.json({
+      status: 'ONLINE',
+      telemetry: cachedTelemetry,
+      timestamp: new Date().toISOString(),
+      cached: true,
+    });
+  }
+
+  const appInstalled =
+    fs.existsSync('/mnt/c/Users/anish/Hermes-Agent-OS/Hermes-Agent-OS.exe') ||
+    fs.existsSync('/mnt/c/Users/anish/Hermes-Agent-OS/node_modules/electron/dist/electron.exe');
+
   const telemetry: WindowsTelemetry = {
     isWsl: fs.existsSync('/proc/sys/fs/binfmt_misc/WSLInterop') || fs.existsSync('/mnt/c'),
     windowsUser: 'anish',
     hasWindowsTerminal: false,
     installedBrowsers: [],
     distroName: 'kali-linux',
-    isStandaloneAppInstalled: false,
+    isStandaloneAppInstalled: appInstalled,
     isStandaloneAppRunning: false,
   };
 
   try {
-    const userOut = await execOnWindows('$env:USERNAME').catch(() => 'anish');
-    telemetry.windowsUser = userOut.replace(/['"\r\n]/g, '').trim() || 'anish';
+    // Single consolidated hidden batch query for zero window flashing and fast response
+    const batchCmd = `$u = $env:USERNAME; $w = if (Get-Command wt.exe -ErrorAction SilentlyContinue) { (Get-Command wt.exe).Source } else { '' }; $e = if (Get-Process electron -ErrorAction SilentlyContinue) { 'RUNNING' } else { 'STOPPED' }; @{ user = $u; wt = $w; electron = $e } | ConvertTo-Json -Compress`;
+    const rawJson = await execOnWindows(batchCmd);
+    if (rawJson) {
+      try {
+        const parsed = JSON.parse(rawJson);
+        if (parsed.user) telemetry.windowsUser = String(parsed.user).trim();
+        if (parsed.wt) {
+          telemetry.hasWindowsTerminal = true;
+          telemetry.windowsTerminalPath = String(parsed.wt).split('\n')[0].trim();
+        }
+        telemetry.isStandaloneAppRunning = parsed.electron === 'RUNNING';
+      } catch {}
+    }
   } catch {
     telemetry.windowsUser = 'anish';
   }
-
-  // Probe Windows Terminal
-  try {
-    const wtCheck = await execOnWindows("if (Get-Command wt.exe -ErrorAction SilentlyContinue) { (Get-Command wt.exe).Source }").catch(() => '');
-    if (wtCheck && wtCheck.toLowerCase().includes('wt.exe')) {
-      telemetry.hasWindowsTerminal = true;
-      telemetry.windowsTerminalPath = wtCheck.split('\n')[0].trim();
-    }
-  } catch {}
-
-  // Probe Standalone Desktop Application
-  try {
-    const appInstalled = fs.existsSync('/mnt/c/Users/anish/Hermes-Agent-OS/Hermes-Agent-OS.exe') ||
-      fs.existsSync('/mnt/c/Users/anish/Hermes-Agent-OS/node_modules/electron/dist/electron.exe');
-    telemetry.isStandaloneAppInstalled = appInstalled;
-
-    const electronRunning = await execOnWindows("if (Get-Process electron -ErrorAction SilentlyContinue) { 'RUNNING' } else { 'STOPPED' }").catch(() => 'STOPPED');
-    telemetry.isStandaloneAppRunning = electronRunning.includes('RUNNING');
-  } catch {}
 
   // Probe installed browsers
   const browserCandidates = [
@@ -91,6 +111,9 @@ export async function GET() {
     available: fs.existsSync(b.path),
   }));
 
+  cachedTelemetry = telemetry;
+  lastTelemetryTime = now;
+
   return NextResponse.json({
     status: 'ONLINE',
     telemetry,
@@ -99,7 +122,7 @@ export async function GET() {
 }
 
 /**
- * POST: Execute Windows Host Action
+ * POST: Execute Windows Host Action (100% Hidden)
  */
 export async function POST(req: NextRequest) {
   try {
@@ -107,6 +130,28 @@ export async function POST(req: NextRequest) {
     const action = body.action || '';
 
     switch (action) {
+      case 'open-mic-settings': {
+        // Direct jump to Windows Microphone Privacy Settings
+        const psCmd = "Start-Process 'ms-settings:privacy-microphone' -WindowStyle Hidden";
+        await launchOnWindows(psCmd);
+        return NextResponse.json({
+          success: true,
+          action,
+          message: 'Opened Windows Microphone Privacy Settings.',
+        });
+      }
+
+      case 'open-sound-settings': {
+        // Opens Classic Windows Sound Recording Control Panel
+        const psCmd = "Start-Process 'control.exe' -ArgumentList 'mmsys.cpl,,1' -WindowStyle Hidden";
+        await launchOnWindows(psCmd);
+        return NextResponse.json({
+          success: true,
+          action,
+          message: 'Opened Windows Sound Control Panel (Recording Devices).',
+        });
+      }
+
       case 'launch-kali': {
         // Spawns native Windows Terminal or WSL Kali console directly on Windows desktop
         const psCmd = "if (Get-Command wt.exe -ErrorAction SilentlyContinue) { Start-Process wt.exe -ArgumentList 'wsl.exe -d kali-linux ~' } else { Start-Process cmd.exe -ArgumentList '/c start `\"Kali Linux - Hermes Agent OS`\" wsl.exe -d kali-linux ~' }";
@@ -142,7 +187,7 @@ export async function POST(req: NextRequest) {
 
       case 'launch-studio-app': {
         // Launch independent standalone desktop application (NO web browser)
-        const psCmd = "if (Test-Path 'C:\\Users\\anish\\Hermes-Agent-OS\\Hermes-Agent-OS.exe') { Start-Process 'C:\\Users\\anish\\Hermes-Agent-OS\\Hermes-Agent-OS.exe' -WorkingDirectory 'C:\\Users\\anish\\Hermes-Agent-OS' } elseif (Test-Path 'C:\\Users\\anish\\Hermes-Agent-OS\\node_modules\\electron\\dist\\electron.exe') { Start-Process 'C:\\Users\\anish\\Hermes-Agent-OS\\node_modules\\electron\\dist\\electron.exe' -ArgumentList '.' -WorkingDirectory 'C:\\Users\\anish\\Hermes-Agent-OS' } else { Start-Process 'http://127.0.0.1:3001' }";
+        const psCmd = "if (Test-Path 'C:\\Users\\anish\\Hermes-Agent-OS\\Hermes-Agent-OS.exe') { Start-Process 'C:\\Users\\anish\\Hermes-Agent-OS\\Hermes-Agent-OS.exe' -WorkingDirectory 'C:\\Users\\anish\\Hermes-Agent-OS' -WindowStyle Hidden } elseif (Test-Path 'C:\\Users\\anish\\Hermes-Agent-OS\\node_modules\\electron\\dist\\electron.exe') { Start-Process 'C:\\Users\\anish\\Hermes-Agent-OS\\node_modules\\electron\\dist\\electron.exe' -ArgumentList '.' -WorkingDirectory 'C:\\Users\\anish\\Hermes-Agent-OS' -WindowStyle Hidden } else { Start-Process 'http://127.0.0.1:3001' -WindowStyle Hidden }";
         await launchOnWindows(psCmd);
         return NextResponse.json({
           success: true,
