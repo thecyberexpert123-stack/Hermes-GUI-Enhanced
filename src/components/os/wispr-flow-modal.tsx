@@ -50,8 +50,13 @@ export const WisprFlowModal: React.FC<WisprFlowModalProps> = ({
     lastDictation,
     totalDictationsCount,
     isSyncing,
-    autoSubmit,
-    setAutoSubmit,
+    executionMode,
+    setExecutionMode,
+    activationMode,
+    setActivationMode,
+    pendingDictation,
+    approveDictation,
+    discardDictation,
     launchApp,
     triggerPtt,
     refresh,
@@ -73,6 +78,17 @@ export const WisprFlowModal: React.FC<WisprFlowModalProps> = ({
     if (onSelectPrompt) {
       onSelectPrompt(text, executeNow);
     }
+    onClose();
+  };
+
+  const handleApprovePending = () => {
+    if (!pendingDictation) return;
+    const text = pendingDictation.formattedText || pendingDictation.pastedText;
+    soundFx.playChirp();
+    if (onSelectPrompt) {
+      onSelectPrompt(text, true);
+    }
+    approveDictation();
     onClose();
   };
 
@@ -132,7 +148,55 @@ export const WisprFlowModal: React.FC<WisprFlowModalProps> = ({
 
         {/* Main Content Area */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 scrollbar-thin z-10">
-          {/* Status & User Card */}
+          {/* Pending Operator Approval Banner */}
+          {pendingDictation && (
+            <div className="p-4 rounded-2xl border-2 border-accent bg-accent/15 backdrop-blur-md shadow-[0_0_30px_hsl(var(--accent)/0.3)] animate-in fade-in slide-in-from-top-2">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-mono font-bold text-accent flex items-center gap-1.5 uppercase">
+                  <Waves size={14} className="animate-pulse" />
+                  DICTATION AWAITING OPERATOR APPROVAL
+                </span>
+                <span className="text-[10px] font-mono text-muted-foreground">
+                  {new Date(pendingDictation.timestamp).toLocaleTimeString()}
+                </span>
+              </div>
+              <p className="text-sm font-sans font-bold text-foreground mb-3 leading-relaxed">
+                &ldquo;{pendingDictation.formattedText || pendingDictation.pastedText}&rdquo;
+              </p>
+              <div className="flex items-center justify-end gap-2">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={discardDictation}
+                  className="h-7 text-xs font-mono text-muted-foreground hover:text-destructive cursor-pointer"
+                >
+                  <X size={12} className="mr-1" />
+                  Discard
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    handleUsePrompt(pendingDictation.formattedText || pendingDictation.pastedText, false);
+                    discardDictation();
+                  }}
+                  className="h-7 text-xs font-mono border-primary/40 text-primary hover:bg-primary/20 cursor-pointer"
+                >
+                  Edit in Prompt
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleApprovePending}
+                  className="h-7 text-xs font-mono bg-accent hover:bg-accent/80 text-background font-bold shadow-[0_0_15px_hsl(var(--accent)/0.5)] cursor-pointer"
+                >
+                  <CheckCircle2 size={13} className="mr-1" />
+                  Approve & Run ⚡
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Status & Policy Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {/* Engine Telemetry Card */}
             <div className="p-3.5 rounded-2xl border border-primary/25 bg-primary/5 flex flex-col justify-between">
@@ -214,21 +278,105 @@ export const WisprFlowModal: React.FC<WisprFlowModalProps> = ({
                 </div>
               </div>
 
-              {/* Auto Submit Switcher */}
-              <div className="flex items-center justify-between mt-3 pt-2 border-t border-primary/15">
-                <span className="text-[10px] font-mono text-muted-foreground">Auto-Ingest into Hermes:</span>
-                <button
-                  type="button"
-                  onClick={() => setAutoSubmit(!autoSubmit)}
-                  className={cn(
-                    'px-2 py-0.5 rounded-full text-[9px] font-mono font-bold border transition-all cursor-pointer',
-                    autoSubmit
-                      ? 'border-accent bg-accent/25 text-accent shadow-[0_0_10px_hsl(var(--accent)/0.4)]'
-                      : 'border-muted text-muted-foreground hover:bg-muted/20'
-                  )}
-                >
-                  {autoSubmit ? 'AUTO-PROMPT: ON' : 'MANUAL REVIEW'}
-                </button>
+              <div className="text-[10px] font-mono text-muted-foreground pt-1 border-t border-primary/10">
+                <span>Active Profile Database Linked</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Workflow & Activation Policy Control Strip */}
+          <div className="p-4 rounded-2xl border border-accent/35 bg-accent/5 backdrop-blur-sm space-y-3">
+            <div className="flex items-center justify-between">
+              <span className={cn('text-xs font-bold tracking-wider text-accent flex items-center gap-2', orbitron.className)}>
+                <Zap size={14} className="text-accent" />
+                VOICE & DICTATION POLICY ENGINE
+              </span>
+              <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-primary/15 border border-primary/30 text-primary">
+                CONFIG PERSISTED
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-mono">
+              {/* Policy 1: Execution Mode (Manual Approval vs Auto-Execute) */}
+              <div className="p-3 rounded-xl border border-primary/20 bg-background/60 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-primary font-bold text-[11px]">DISPATCH WORKFLOW</span>
+                    <span className="text-[9px] text-muted-foreground uppercase">{executionMode.replace('_', ' ')}</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground leading-relaxed mb-3">
+                    {executionMode === 'manual_approve'
+                      ? 'Review each dictation before sending. Operator retains 100% control.'
+                      : 'Zero-clicks. As soon as you stop speaking, prompt is sent to Hermes.'}
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-background/80 border border-primary/20">
+                  <button
+                    type="button"
+                    onClick={() => setExecutionMode('manual_approve')}
+                    className={cn(
+                      'py-1.5 px-2 rounded-lg text-[10px] font-bold transition-all cursor-pointer text-center',
+                      executionMode === 'manual_approve'
+                        ? 'bg-accent/25 text-accent border border-accent/60 shadow-[0_0_10px_hsl(var(--accent)/0.3)]'
+                        : 'text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    MANUAL APPROVAL
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setExecutionMode('auto_execute')}
+                    className={cn(
+                      'py-1.5 px-2 rounded-lg text-[10px] font-bold transition-all cursor-pointer text-center',
+                      executionMode === 'auto_execute'
+                        ? 'bg-emerald-500/25 text-emerald-400 border border-emerald-500/60 shadow-[0_0_10px_hsl(var(--emerald-500)/0.3)]'
+                        : 'text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    AUTO-EXECUTE ⚡
+                  </button>
+                </div>
+              </div>
+
+              {/* Policy 2: Activation Method (Caps Lock PTT vs Keyless Hands-Free) */}
+              <div className="p-3 rounded-xl border border-primary/20 bg-background/60 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-primary font-bold text-[11px]">ACTIVATION METHOD</span>
+                    <span className="text-[9px] text-muted-foreground uppercase">{activationMode.replace('_', ' ')}</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground leading-relaxed mb-3">
+                    {activationMode === 'hands_free'
+                      ? 'Keyless ambient listening. Speak naturally with ZERO keyboard keys needed.'
+                      : 'Hold or toggle Caps Lock on Windows host to activate dictation.'}
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-background/80 border border-primary/20">
+                  <button
+                    type="button"
+                    onClick={() => setActivationMode('key_ptt')}
+                    className={cn(
+                      'py-1.5 px-2 rounded-lg text-[10px] font-bold transition-all cursor-pointer text-center',
+                      activationMode === 'key_ptt'
+                        ? 'bg-primary/25 text-primary border border-primary/60 shadow-[0_0_10px_hsl(var(--primary)/0.3)]'
+                        : 'text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    CAPS LOCK [PTT]
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActivationMode('hands_free')}
+                    className={cn(
+                      'py-1.5 px-2 rounded-lg text-[10px] font-bold transition-all cursor-pointer text-center',
+                      activationMode === 'hands_free'
+                        ? 'bg-accent/25 text-accent border border-accent/60 shadow-[0_0_10px_hsl(var(--accent)/0.3)]'
+                        : 'text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    KEYLESS HANDS-FREE 🎙️
+                  </button>
+                </div>
               </div>
             </div>
           </div>

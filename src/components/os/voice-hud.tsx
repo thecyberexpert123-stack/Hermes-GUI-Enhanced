@@ -17,6 +17,8 @@ import {
   ShieldAlert,
   Activity,
   Waves,
+  CheckCircle2,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { soundFx } from '@/lib/audio-synth';
 import { Input } from '@/components/ui/input';
@@ -38,6 +40,12 @@ const VoiceHUD = ({ closeDialog, onOpenChatWithSession }: VoiceHUDProps) => {
 
   const wispr = useWisprFlow({
     pollingIntervalMs: isWisprModalOpen ? 1500 : 3000,
+    onAutoSubmit: (text) => {
+      if (text && text.trim()) {
+        soundFx.playChirp();
+        sendVoiceQuery(text.trim());
+      }
+    },
   });
 
   const [micPeaks, setMicPeaks] = useState<number[]>(() => new Array(24).fill(6));
@@ -645,17 +653,69 @@ const VoiceHUD = ({ closeDialog, onOpenChatWithSession }: VoiceHUDProps) => {
         </div>
       )}
 
-      {/* Wispr Flow Live Dictation Ingest Banner */}
-      {wispr.lastDictation && (wispr.lastDictation.formattedText || wispr.lastDictation.pastedText) && (
-        <div className="w-full flex items-center justify-between px-3 py-1.5 rounded-xl border border-sky-500/40 bg-sky-950/30 text-xs font-mono my-1 shrink-0 animate-in fade-in duration-300">
-          <div className="flex items-center gap-2 overflow-hidden mr-2">
-            <Waves size={13} className="text-sky-400 shrink-0 animate-pulse" />
-            <span className="text-sky-300 font-bold text-[10px] shrink-0">WISPR FLOW:</span>
-            <span className="text-foreground/90 truncate font-sans text-[11px] italic">
-              &quot;{wispr.lastDictation.formattedText || wispr.lastDictation.pastedText}&quot;
-            </span>
+      {/* Wispr Flow Pending Operator Approval Banner */}
+      {wispr.pendingDictation && (
+        <div className="w-full p-3 rounded-xl border-2 border-accent bg-accent/20 backdrop-blur-md text-xs font-mono my-1 shrink-0 animate-in fade-in duration-300 shadow-[0_0_20px_hsl(var(--accent)/0.3)]">
+          <div className="flex items-center justify-between mb-1.5 text-[10px]">
+            <div className="flex items-center gap-1.5 text-accent font-bold">
+              <Waves size={13} className="animate-pulse" />
+              <span>DICTATION AWAITING APPROVAL:</span>
+            </div>
+            <span className="text-muted-foreground">Press Enter to Approve</span>
           </div>
-          <div className="flex items-center gap-1.5 shrink-0">
+          <p className="text-xs font-sans font-bold text-foreground mb-2 leading-relaxed bg-background/50 p-2 rounded-lg border border-accent/20">
+            &ldquo;{wispr.pendingDictation.formattedText || wispr.pendingDictation.pastedText}&rdquo;
+          </p>
+          <div className="flex items-center justify-end gap-1.5">
+            <button
+              type="button"
+              onClick={wispr.discardDictation}
+              className="px-2 py-0.5 rounded bg-destructive/20 hover:bg-destructive/30 text-destructive text-[10px] font-bold cursor-pointer"
+            >
+              ✕ DISCARD
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setTypedInput(wispr.pendingDictation!.formattedText || wispr.pendingDictation!.pastedText);
+                wispr.discardDictation();
+              }}
+              className="px-2 py-0.5 rounded bg-primary/20 hover:bg-primary/30 text-primary text-[10px] font-bold cursor-pointer"
+            >
+              ✎ EDIT
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const text = wispr.approveDictation();
+                if (text) sendVoiceQuery(text);
+              }}
+              className="px-2.5 py-0.5 rounded bg-accent hover:bg-accent/80 text-background text-[10px] font-bold flex items-center gap-1 cursor-pointer shadow-[0_0_10px_hsl(var(--accent)/0.5)]"
+            >
+              <CheckCircle2 size={11} />
+              APPROVE & ASK ⚡
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Wispr Flow Policy & Voice Control Strip */}
+      <div className="w-full flex items-center justify-between px-3 py-1.5 rounded-xl border border-sky-500/40 bg-sky-950/30 text-xs font-mono my-1 shrink-0 animate-in fade-in duration-300">
+        <div className="flex items-center gap-2 overflow-hidden mr-2">
+          <Waves size={13} className="text-sky-400 shrink-0 animate-pulse" />
+          <span className="text-sky-300 font-bold text-[10px] shrink-0">WISPR FLOW:</span>
+          {wispr.lastDictation?.formattedText ? (
+            <span className="text-foreground/90 truncate font-sans text-[11px] italic">
+              &quot;{wispr.lastDictation.formattedText}&quot;
+            </span>
+          ) : (
+            <span className="text-muted-foreground text-[10px] truncate">
+              {wispr.activationMode === 'hands_free' ? 'Keyless Hands-Free Active' : 'Caps Lock PTT Ready'}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {wispr.lastDictation?.formattedText && !wispr.pendingDictation && (
             <button
               type="button"
               onClick={() => {
@@ -663,27 +723,56 @@ const VoiceHUD = ({ closeDialog, onOpenChatWithSession }: VoiceHUDProps) => {
                 soundFx.playClick();
                 setTypedInput(text);
               }}
-              className="px-2 py-0.5 rounded bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/40 text-sky-300 text-[10px] font-bold cursor-pointer transition-colors"
+              className="px-2 py-0.5 rounded bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/40 text-sky-300 text-[10px] font-bold cursor-pointer transition-colors hidden sm:inline-block"
               title="Copy Wispr Flow dictation into text input"
             >
               INSERT
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                const text = wispr.lastDictation!.formattedText || wispr.lastDictation!.pastedText;
-                soundFx.playClick();
-                sendVoiceQuery(text);
-              }}
-              className="px-2 py-0.5 rounded bg-sky-500 hover:bg-sky-400 text-black text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-[0_0_8px_rgba(56,189,248,0.4)]"
-              title="Send Wispr Flow dictation directly as Voice Command"
-            >
-              <Zap size={10} />
-              ASK ⚡
-            </button>
-          </div>
+          )}
+
+          {/* Execution Mode */}
+          <button
+            type="button"
+            onClick={() => wispr.setExecutionMode(wispr.executionMode === 'auto_execute' ? 'manual_approve' : 'auto_execute')}
+            className={cn(
+              "px-2 py-0.5 rounded text-[10px] font-bold border transition-colors cursor-pointer",
+              wispr.executionMode === 'auto_execute'
+                ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-400"
+                : "bg-sky-500/20 border-sky-500/40 text-sky-300"
+            )}
+            title="Toggle between Auto-Execute and Manual Approval"
+          >
+            {wispr.executionMode === 'auto_execute' ? '⚡ AUTO-USE' : '✓ APPROVE'}
+          </button>
+
+          {/* Activation Mode */}
+          <button
+            type="button"
+            onClick={() => wispr.setActivationMode(wispr.activationMode === 'hands_free' ? 'key_ptt' : 'hands_free')}
+            className={cn(
+              "px-2 py-0.5 rounded text-[10px] font-bold border transition-colors cursor-pointer",
+              wispr.activationMode === 'hands_free'
+                ? "bg-accent/25 border-accent text-accent"
+                : "bg-muted/20 border-muted text-muted-foreground hover:text-foreground"
+            )}
+            title="Toggle between Keyless Hands-Free and Caps Lock PTT"
+          >
+            {wispr.activationMode === 'hands_free' ? '🎙️ KEYLESS' : '⌨️ CAPS LOCK'}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              soundFx.playClick(1000);
+              setIsWisprModalOpen(true);
+            }}
+            className="p-1 text-muted-foreground hover:text-foreground cursor-pointer"
+            title="Open Wispr Flow Settings"
+          >
+            <SlidersHorizontal size={12} />
+          </button>
         </div>
-      )}
+      </div>
 
       {/* Text Prompt Input Fallback */}
       <form onSubmit={handleTextSubmit} className="relative w-full mt-1.5 shrink-0">

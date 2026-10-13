@@ -57,7 +57,7 @@ import {
   DialogDescription,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Search, Zap, Layers, Command, Wrench, Monitor, Waves, SlidersHorizontal } from 'lucide-react';
+import { Search, Zap, Layers, Command, Wrench, Monitor, Waves, SlidersHorizontal, CheckCircle2 } from 'lucide-react';
 import { SlashCommandAutocomplete } from './slash-command-autocomplete';
 import { HermesCommandsDialog } from './hermes-commands-dialog';
 import { searchHermesCommands, type HermesCommand } from '@/lib/hermes-commands';
@@ -113,19 +113,163 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
   const [godsEyeLocation, setGodsEyeLocation] = useState<GeoLocation | null>(null);
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
   const { toast } = useToast();
+  const sendQueryRef = useRef<(text: string, isProtocol?: boolean) => void>(() => {});
 
   const {
     isRunning: isWisprRunning,
     lastDictation: wisprLastDictation,
-    autoSubmit: isWisprAutoSubmit,
+    executionMode: wisprExecutionMode,
+    setExecutionMode: setWisprExecutionMode,
+    activationMode: wisprActivationMode,
+    setActivationMode: setWisprActivationMode,
+    pendingDictation: wisprPendingDictation,
+    setPendingDictation: setWisprPendingDictation,
+    approveDictation: approveWisprDictation,
+    discardDictation: discardWisprDictation,
     triggerPtt: triggerWisprPtt,
   } = useWisprFlow({
     onAutoSubmit: (text) => {
       if (text && text.trim()) {
-        sendQuery(text);
+        soundFx.playChirp();
+        toast({
+          title: "⚡ Wispr Flow Auto-Executed",
+          description: `"${text.trim()}"`,
+        });
+        sendQueryRef.current(text);
       }
     },
+    onPendingApproval: (dictation) => {
+      soundFx.playWakeWordChime();
+      toast({
+        title: "🌊 Wispr Flow Voice Input",
+        description: `"${dictation.formattedText || dictation.pastedText}" - Awaiting Operator Approval`,
+      });
+    },
   });
+
+  // Handle keyboard shortcut for pending dictation approval (Enter to approve, Esc to discard)
+  useEffect(() => {
+    if (!wisprPendingDictation) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        discardWisprDictation();
+      } else if (e.key === 'Enter' && !e.shiftKey && (document.activeElement?.tagName !== 'TEXTAREA' || e.ctrlKey)) {
+        e.preventDefault();
+        approveWisprDictation();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [wisprPendingDictation, approveWisprDictation, discardWisprDictation]);
+
+  // Hands-free ambient listener when activationMode === 'hands_free' (Zero keyboard keys needed)
+  const [isHandsFreeActive, setIsHandsFreeActive] = useState(false);
+  const handsFreeRecRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (wisprActivationMode !== 'hands_free') {
+      if (handsFreeRecRef.current) {
+        try { handsFreeRecRef.current.abort(); } catch {}
+        handsFreeRecRef.current = null;
+      }
+      setIsHandsFreeActive(false);
+      return;
+    }
+
+    const SpeechRecognition =
+      typeof window !== 'undefined'
+        ? (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+        : null;
+
+    if (!SpeechRecognition) {
+      return;
+    }
+
+    let isStoppedExplicitly = false;
+    let accumulatedText = '';
+    let silenceTimer: any = null;
+
+    const startListener = () => {
+      if (isStoppedExplicitly) return;
+      try {
+        const rec = new SpeechRecognition();
+        rec.continuous = true;
+        rec.interimResults = true;
+        rec.lang = 'en-US';
+
+        rec.onstart = () => {
+          setIsHandsFreeActive(true);
+        };
+
+        rec.onresult = (event: any) => {
+          let currentText = '';
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            currentText += event.results[i][0].transcript;
+          }
+          const spoken = currentText.trim();
+          if (spoken) {
+            accumulatedText = spoken;
+            if (silenceTimer) clearTimeout(silenceTimer);
+            silenceTimer = setTimeout(() => {
+              const clean = accumulatedText.trim();
+              if (clean) {
+                accumulatedText = '';
+                if (wisprExecutionMode === 'auto_execute') {
+                  soundFx.playChirp();
+                  toast({
+                    title: "🎙️ Keyless Voice Auto-Executed",
+                    description: `"${clean}"`,
+                  });
+                  sendQueryRef.current(clean);
+                } else {
+                  soundFx.playWakeWordChime();
+                  setWisprPendingDictation({
+                    id: String(Date.now()),
+                    timestamp: new Date().toISOString(),
+                    app: 'Hands-Free Voice',
+                    formattedText: clean,
+                    pastedText: clean,
+                  });
+                }
+              }
+            }, 1200);
+          }
+        };
+
+        rec.onerror = () => {
+          // Keep continuous mode active on transient pauses
+        };
+
+        rec.onend = () => {
+          if (!isStoppedExplicitly && wisprActivationMode === 'hands_free') {
+            setTimeout(startListener, 400);
+          } else {
+            setIsHandsFreeActive(false);
+          }
+        };
+
+        handsFreeRecRef.current = rec;
+        rec.start();
+      } catch (err) {
+        console.warn('Hands-free SpeechRecognition start notice:', err);
+      }
+    };
+
+    startListener();
+
+    return () => {
+      isStoppedExplicitly = true;
+      if (silenceTimer) clearTimeout(silenceTimer);
+      if (handsFreeRecRef.current) {
+        try { handsFreeRecRef.current.abort(); } catch {}
+        handsFreeRecRef.current = null;
+      }
+      setIsHandsFreeActive(false);
+    };
+  }, [wisprActivationMode, wisprExecutionMode, setWisprPendingDictation, toast]);
 
   const spawnKaliTerminal = async () => {
     soundFx.playClick(1100);
@@ -1049,6 +1193,7 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
       setIsLoading(false);
     }
   };
+  sendQueryRef.current = sendQuery;
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -1326,51 +1471,155 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
           </button>
         </div>
 
-        {/* Live Wispr Flow Dictation Ingestion Chip */}
-        {wisprLastDictation && wisprLastDictation.formattedText && (
-          <div className="w-full flex items-center justify-between gap-2 px-3 py-1.5 mb-1.5 rounded-2xl border border-accent/40 bg-accent/10 backdrop-blur-md text-[11px] font-mono animate-in fade-in slide-in-from-bottom-2">
-            <div className="flex items-center gap-1.5 min-w-0">
-              <Waves size={13} className="text-accent shrink-0 animate-pulse" />
-              <span className="text-accent font-bold shrink-0">WISPR FLOW:</span>
-              <span className="text-foreground/90 truncate italic font-sans">&ldquo;{wisprLastDictation.formattedText}&rdquo;</span>
+        {/* Pending Operator Approval Banner for Voice & Wispr Flow Dictation */}
+        {wisprPendingDictation && (
+          <div className="w-full p-3.5 mb-2 rounded-2xl border-2 border-accent bg-accent/15 backdrop-blur-md shadow-[0_0_30px_hsl(var(--accent)/0.35)] animate-in fade-in slide-in-from-bottom-2 z-20">
+            <div className="flex items-center justify-between mb-1.5 text-[11px] font-mono">
+              <div className="flex items-center gap-1.5 text-accent font-bold">
+                <Waves size={14} className="animate-pulse" />
+                <span>VOICE INPUT // AWAITING YOUR APPROVAL:</span>
+              </div>
+              <span className="text-[10px] text-muted-foreground hidden sm:inline">
+                Press <span className="text-accent font-bold">Enter</span> to Approve &bull; <span className="text-destructive font-bold">Esc</span> to Discard
+              </span>
             </div>
-            <div className="flex items-center gap-1.5 shrink-0">
+
+            <p className="text-xs sm:text-sm font-sans font-semibold text-foreground mb-2.5 leading-relaxed bg-background/50 p-2.5 rounded-xl border border-accent/20">
+              &ldquo;{wisprPendingDictation.formattedText || wisprPendingDictation.pastedText}&rdquo;
+            </p>
+
+            <div className="flex items-center justify-between gap-2 pt-1 border-t border-accent/20">
+              <span className="text-[10px] font-mono text-muted-foreground flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-accent animate-ping" />
+                <span>SOURCE: {wisprPendingDictation.app || (wisprActivationMode === 'hands_free' ? 'KEYLESS VOICE' : 'WISPR FLOW')}</span>
+              </span>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={discardWisprDictation}
+                  className="px-2.5 py-1 rounded-lg border border-destructive/40 text-destructive hover:bg-destructive/15 text-[10px] font-mono font-bold cursor-pointer transition-all"
+                  title="Discard this dictation [Esc]"
+                >
+                  ✕ DISCARD
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    soundFx.playClick(1000);
+                    setInput(wisprPendingDictation.formattedText || wisprPendingDictation.pastedText);
+                    discardWisprDictation();
+                  }}
+                  className="px-2.5 py-1 rounded-lg border border-primary/40 text-primary hover:bg-primary/20 text-[10px] font-mono font-bold cursor-pointer transition-all"
+                  title="Edit text in prompt before sending"
+                >
+                  ✎ EDIT
+                </button>
+                <button
+                  type="button"
+                  onClick={() => approveWisprDictation()}
+                  className="px-3 py-1 rounded-lg bg-accent text-background hover:bg-accent/80 text-[10px] font-mono font-bold flex items-center gap-1 cursor-pointer shadow-[0_0_15px_hsl(var(--accent)/0.5)] transition-all"
+                  title="Approve and execute immediately [Enter]"
+                >
+                  <CheckCircle2 size={12} />
+                  APPROVE & RUN ⚡
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Wispr Flow Policy & Voice Control Strip */}
+        <div className="w-full flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 mb-1.5 rounded-2xl border border-accent/30 bg-accent/5 backdrop-blur-md text-[11px] font-mono transition-all">
+          {/* Left: Wispr Status & Latest Dictation Snippet */}
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <button
+              type="button"
+              onClick={() => {
+                soundFx.playClick(1000);
+                setIsWisprModalOpen(true);
+              }}
+              className="flex items-center gap-1.5 text-accent hover:text-foreground cursor-pointer shrink-0 font-bold"
+              title="Open Wispr Flow Settings & Policy Hub"
+            >
+              <Waves size={13} className={cn("text-accent", isWisprRunning && "animate-pulse")} />
+              <span className="hidden sm:inline">WISPR FLOW:</span>
+            </button>
+
+            {wisprLastDictation?.formattedText ? (
+              <span className="text-foreground/85 truncate italic font-sans text-xs">
+                &ldquo;{wisprLastDictation.formattedText}&rdquo;
+              </span>
+            ) : (
+              <span className="text-muted-foreground text-[10px] truncate">
+                {wisprActivationMode === 'hands_free'
+                  ? 'Keyless Hands-Free Active • Speak freely with zero keys'
+                  : 'Ready • Press Caps Lock on Windows host to dictate'}
+              </span>
+            )}
+          </div>
+
+          {/* Right: Quick Action Controls & Policy Switchers */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {/* If last dictation text exists and not pending, offer quick Insert */}
+            {wisprLastDictation?.formattedText && !wisprPendingDictation && (
               <button
                 type="button"
                 onClick={() => {
                   soundFx.playClick(1000);
                   setInput(wisprLastDictation.formattedText);
                 }}
-                className="px-2 py-0.5 rounded-lg bg-primary/20 hover:bg-primary/30 text-[10px] text-primary font-bold transition-all cursor-pointer"
-                title="Insert text into prompt"
+                className="px-2 py-0.5 rounded-lg bg-primary/20 hover:bg-primary/30 text-[10px] text-primary font-bold transition-all cursor-pointer hidden md:inline-block"
+                title="Insert last dictation into prompt"
               >
                 INSERT
               </button>
-              <button
-                type="button"
-                onClick={() => {
-                  soundFx.playClick(1200);
-                  sendQuery(wisprLastDictation.formattedText);
-                }}
-                className="px-2 py-0.5 rounded-lg bg-accent/30 hover:bg-accent/40 text-[10px] text-accent font-bold transition-all cursor-pointer"
-                title="Send directly to Hermes"
-              >
-                SEND ⚡
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  soundFx.playClick(1000);
-                  setIsWisprModalOpen(true);
-                }}
-                className="p-1 text-muted-foreground hover:text-foreground cursor-pointer"
-                title="Open Wispr Flow Control Center"
-              >
-                <SlidersHorizontal size={12} />
-              </button>
-            </div>
+            )}
+
+            {/* Dispatch Mode Toggle: Manual Approval vs Auto-Execute */}
+            <button
+              type="button"
+              onClick={() => setWisprExecutionMode(wisprExecutionMode === 'auto_execute' ? 'manual_approve' : 'auto_execute')}
+              className={cn(
+                "px-2 py-0.5 rounded-full text-[10px] font-mono font-bold border transition-all cursor-pointer flex items-center gap-1",
+                wisprExecutionMode === 'auto_execute'
+                  ? "border-emerald-500/60 bg-emerald-500/20 text-emerald-400 shadow-[0_0_10px_hsl(var(--emerald-500)/0.3)]"
+                  : "border-accent/50 bg-accent/15 text-accent"
+              )}
+              title={wisprExecutionMode === 'auto_execute' ? "Auto-Execute active (zero clicks) - Click to switch to Manual Approval" : "Manual Approval active - Click to switch to Auto-Execute"}
+            >
+              {wisprExecutionMode === 'auto_execute' ? '⚡ AUTO-USE' : '✓ APPROVE'}
+            </button>
+
+            {/* Activation Mode Toggle: Keyless Hands-Free vs Caps Lock PTT */}
+            <button
+              type="button"
+              onClick={() => setWisprActivationMode(wisprActivationMode === 'hands_free' ? 'key_ptt' : 'hands_free')}
+              className={cn(
+                "px-2 py-0.5 rounded-full text-[10px] font-mono font-bold border transition-all cursor-pointer flex items-center gap-1",
+                wisprActivationMode === 'hands_free'
+                  ? "border-sky-400/60 bg-sky-500/25 text-sky-300 shadow-[0_0_10px_hsl(var(--sky-400)/0.4)] animate-pulse"
+                  : "border-primary/40 bg-primary/10 text-muted-foreground hover:text-foreground"
+              )}
+              title={wisprActivationMode === 'hands_free' ? "Keyless Hands-Free active (no keys needed) - Click to switch to Caps Lock" : "Caps Lock PTT active - Click to switch to Keyless Hands-Free"}
+            >
+              {wisprActivationMode === 'hands_free' ? '🎙️ KEYLESS' : '⌨️ CAPS LOCK'}
+            </button>
+
+            {/* Open Settings Modal */}
+            <button
+              type="button"
+              onClick={() => {
+                soundFx.playClick(1000);
+                setIsWisprModalOpen(true);
+              }}
+              className="p-1 rounded-md text-muted-foreground hover:text-accent hover:bg-accent/10 transition-all cursor-pointer"
+              title="Wispr Flow Voice Policy Settings"
+            >
+              <SlidersHorizontal size={12} />
+            </button>
           </div>
-        )}
+        </div>
 
         <form onSubmit={handleSubmit} className="relative w-full">
           {/* Autocomplete Popover */}

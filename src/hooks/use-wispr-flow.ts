@@ -4,19 +4,28 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { soundFx } from '@/lib/audio-synth';
 import type { WisprUser, WisprKeybind, WisprDictation, WisprStatusResponse } from '@/lib/wispr-flow';
 
+export type WisprExecutionMode = 'manual_approve' | 'auto_execute';
+export type WisprActivationMode = 'key_ptt' | 'hands_free';
+
 export interface UseWisprFlowOptions {
   pollingIntervalMs?: number;
   autoSubmitDefault?: boolean;
+  defaultExecutionMode?: WisprExecutionMode;
+  defaultActivationMode?: WisprActivationMode;
   onNewDictation?: (dictation: WisprDictation) => void;
   onAutoSubmit?: (text: string) => void;
+  onPendingApproval?: (dictation: WisprDictation) => void;
 }
 
 export function useWisprFlow(options: UseWisprFlowOptions = {}) {
   const {
     pollingIntervalMs = 2500,
     autoSubmitDefault = false,
+    defaultExecutionMode = 'manual_approve',
+    defaultActivationMode = 'key_ptt',
     onNewDictation,
     onAutoSubmit,
+    onPendingApproval,
   } = options;
 
   const [isInstalled, setIsInstalled] = useState(false);
@@ -28,18 +37,36 @@ export function useWisprFlow(options: UseWisprFlowOptions = {}) {
   const [lastDictation, setLastDictation] = useState<WisprDictation | null>(null);
   const [totalDictationsCount, setTotalDictationsCount] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [autoSubmit, setAutoSubmitState] = useState<boolean>(() => {
+
+  // Execution Mode: 'manual_approve' vs 'auto_execute'
+  const [executionMode, setExecutionModeState] = useState<WisprExecutionMode>(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('hermes_wispr_auto_submit');
-      if (saved !== null) return saved === 'true';
+      const saved = localStorage.getItem('hermes_wispr_execution_mode');
+      if (saved === 'auto_execute' || saved === 'manual_approve') return saved;
+      const legacyAuto = localStorage.getItem('hermes_wispr_auto_submit');
+      if (legacyAuto !== null) return legacyAuto === 'true' ? 'auto_execute' : 'manual_approve';
     }
-    return autoSubmitDefault;
+    return autoSubmitDefault ? 'auto_execute' : defaultExecutionMode;
   });
+
+  // Activation Mode: 'key_ptt' (Caps Lock) vs 'hands_free' (Keyless continuous ambient)
+  const [activationMode, setActivationModeState] = useState<WisprActivationMode>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('hermes_wispr_activation_mode');
+      if (saved === 'hands_free' || saved === 'key_ptt') return saved;
+    }
+    return defaultActivationMode;
+  });
+
+  // Pending dictation waiting for operator approval
+  const [pendingDictation, setPendingDictation] = useState<WisprDictation | null>(null);
 
   const lastKnownIdRef = useRef<string | null>(null);
   const onNewDictationRef = useRef(onNewDictation);
   const onAutoSubmitRef = useRef(onAutoSubmit);
-  const autoSubmitRef = useRef(autoSubmit);
+  const onPendingApprovalRef = useRef(onPendingApproval);
+  const executionModeRef = useRef(executionMode);
+  const activationModeRef = useRef(activationMode);
 
   useEffect(() => {
     onNewDictationRef.current = onNewDictation;
@@ -50,16 +77,54 @@ export function useWisprFlow(options: UseWisprFlowOptions = {}) {
   }, [onAutoSubmit]);
 
   useEffect(() => {
-    autoSubmitRef.current = autoSubmit;
-  }, [autoSubmit]);
+    onPendingApprovalRef.current = onPendingApproval;
+  }, [onPendingApproval]);
 
-  const setAutoSubmit = useCallback((val: boolean) => {
-    setAutoSubmitState(val);
-    autoSubmitRef.current = val;
+  useEffect(() => {
+    executionModeRef.current = executionMode;
+  }, [executionMode]);
+
+  useEffect(() => {
+    activationModeRef.current = activationMode;
+  }, [activationMode]);
+
+  const setExecutionMode = useCallback((mode: WisprExecutionMode) => {
+    setExecutionModeState(mode);
+    executionModeRef.current = mode;
     if (typeof window !== 'undefined') {
-      localStorage.setItem('hermes_wispr_auto_submit', String(val));
+      localStorage.setItem('hermes_wispr_execution_mode', mode);
+      localStorage.setItem('hermes_wispr_auto_submit', String(mode === 'auto_execute'));
     }
-    soundFx.playClick(val ? 1200 : 800);
+    soundFx.playClick(mode === 'auto_execute' ? 1200 : 900);
+  }, []);
+
+  const setActivationMode = useCallback((mode: WisprActivationMode) => {
+    setActivationModeState(mode);
+    activationModeRef.current = mode;
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('hermes_wispr_activation_mode', mode);
+    }
+    soundFx.playClick(mode === 'hands_free' ? 1300 : 900);
+  }, []);
+
+  const approveDictation = useCallback((target?: WisprDictation | string) => {
+    const textToApprove = typeof target === 'string'
+      ? target
+      : (target?.formattedText || target?.pastedText || pendingDictation?.formattedText || pendingDictation?.pastedText || '');
+    const clean = textToApprove.trim();
+    if (clean) {
+      soundFx.playChirp();
+      setPendingDictation(null);
+      if (onAutoSubmitRef.current) {
+        onAutoSubmitRef.current(clean);
+      }
+    }
+    return clean;
+  }, [pendingDictation]);
+
+  const discardDictation = useCallback(() => {
+    soundFx.playClick(700);
+    setPendingDictation(null);
   }, []);
 
   const refresh = useCallback(async () => {
@@ -85,8 +150,18 @@ export function useWisprFlow(options: UseWisprFlowOptions = {}) {
           if (onNewDictationRef.current) {
             onNewDictationRef.current(latest);
           }
-          if (autoSubmitRef.current && onAutoSubmitRef.current && latest.formattedText) {
-            onAutoSubmitRef.current(latest.formattedText);
+          const text = (latest.formattedText || latest.pastedText || '').trim();
+          if (text) {
+            if (executionModeRef.current === 'auto_execute') {
+              if (onAutoSubmitRef.current) {
+                onAutoSubmitRef.current(text);
+              }
+            } else {
+              setPendingDictation(latest);
+              if (onPendingApprovalRef.current) {
+                onPendingApprovalRef.current(latest);
+              }
+            }
           }
         }
         lastKnownIdRef.current = latest.id;
@@ -148,8 +223,21 @@ export function useWisprFlow(options: UseWisprFlowOptions = {}) {
     lastDictation,
     totalDictationsCount,
     isSyncing,
-    autoSubmit,
-    setAutoSubmit,
+    // Execution & Approval
+    executionMode,
+    setExecutionMode,
+    // Activation (Keyless vs Hotkey)
+    activationMode,
+    setActivationMode,
+    // Pending Approval
+    pendingDictation,
+    setPendingDictation,
+    approveDictation,
+    discardDictation,
+    // Backward compatibility
+    autoSubmit: executionMode === 'auto_execute',
+    setAutoSubmit: (val: boolean) => setExecutionMode(val ? 'auto_execute' : 'manual_approve'),
+    // Actions
     launchApp,
     triggerPtt,
     refresh,
