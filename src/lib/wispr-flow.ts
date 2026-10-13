@@ -194,6 +194,30 @@ export function getWisprDictations(limit = 20): { dictations: WisprDictation[]; 
   }
 }
 
+let lastProcessCheckTime = 0;
+let cachedRunning = false;
+
+/**
+ * Check if Wispr Flow process is actively running on Windows host
+ */
+export async function isWisprProcessRunning(): Promise<boolean> {
+  const now = Date.now();
+  if (now - lastProcessCheckTime < 4000) {
+    return cachedRunning;
+  }
+  try {
+    const { stdout } = await execAsync(
+      `powershell.exe -NoProfile -NonInteractive -Command "if (Get-Process 'Wispr Flow' -ErrorAction SilentlyContinue) { 'RUNNING' } else { 'STOPPED' }" < /dev/null`,
+      { timeout: 3500, windowsHide: true }
+    );
+    cachedRunning = stdout.trim() === 'RUNNING';
+  } catch {
+    cachedRunning = fs.existsSync(DB_PATH + '-wal');
+  }
+  lastProcessCheckTime = now;
+  return cachedRunning;
+}
+
 /**
  * Get comprehensive Wispr Flow status and latest dictations
  */
@@ -211,13 +235,7 @@ export async function getWisprStatus(): Promise<WisprStatusResponse> {
     }
   } catch {}
 
-  let running = false;
-  try {
-    // Check if the SQLite file was recently touched or process is alive
-    if (fs.existsSync(DB_PATH + '-wal')) {
-      running = true;
-    }
-  } catch {}
+  const running = await isWisprProcessRunning();
 
   return {
     installed,
@@ -233,15 +251,17 @@ export async function getWisprStatus(): Promise<WisprStatusResponse> {
 }
 
 /**
- * Launch Wispr Flow on Windows host
+ * Launch Wispr Flow on Windows host silently in background tray
  */
 export async function launchWisprFlowApp(): Promise<{ success: boolean; message: string }> {
   try {
     await execAsync(
-      `powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command "Start-Process -FilePath '$env:LOCALAPPDATA\\WisprFlow\\Wispr Flow.exe'" < /dev/null`,
-      { timeout: 5000, windowsHide: true }
+      `powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command 'Start-Process -FilePath "$env:LOCALAPPDATA\\WisprFlow\\Wispr Flow.exe"' < /dev/null`,
+      { timeout: 6000, windowsHide: true }
     );
-    return { success: true, message: 'Wispr Flow launched on Windows host' };
+    cachedRunning = true;
+    lastProcessCheckTime = Date.now();
+    return { success: true, message: 'Wispr Flow launched silently on Windows host in tray' };
   } catch (err: any) {
     return { success: false, message: err.message || 'Failed to launch Wispr Flow' };
   }

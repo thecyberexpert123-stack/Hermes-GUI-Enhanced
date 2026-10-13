@@ -10,12 +10,16 @@ import { useRealVoice } from '@/hooks/use-real-voice';
 interface LoopingVoiceHUDProps {
   onSendMessage?: (queryText: string) => void;
   isLoading?: boolean;
+  activeTaskTitle?: string;
+  activeProtocol?: string;
   minimal?: boolean;
 }
 
 const LoopingVoiceHUD = ({
   onSendMessage,
   isLoading: externalLoading,
+  activeTaskTitle,
+  activeProtocol,
   minimal = false,
 }: LoopingVoiceHUDProps) => {
   const [particles, setParticles] = useState<React.CSSProperties[]>([]);
@@ -55,6 +59,32 @@ const LoopingVoiceHUD = ({
   });
 
   const effectiveStatus = externalLoading ? 'thinking' : status;
+
+  // Track active background task across all system components
+  const [internalRunningTask, setInternalRunningTask] = useState<{ title: string; protocol?: string } | null>(null);
+
+  useEffect(() => {
+    const handleTask = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const detail = customEvent.detail;
+      if (detail) {
+        if (detail.isCompleted) {
+          setInternalRunningTask(null);
+        } else if (detail.title) {
+          setInternalRunningTask({
+            title: detail.title,
+            protocol: detail.protocol || 'STARK PROTOCOL // AUTONOMOUS TASK',
+          });
+        }
+      }
+    };
+    window.addEventListener('hermes:open-task-execution', handleTask);
+    return () => window.removeEventListener('hermes:open-task-execution', handleTask);
+  }, []);
+
+  const isExecuting = externalLoading || effectiveStatus === 'thinking' || !!activeTaskTitle || !!internalRunningTask;
+  const currentTaskTitle = activeTaskTitle || internalRunningTask?.title || (effectiveStatus === 'thinking' ? transcript || 'NEURAL INFERENCE' : undefined);
+  const effectiveProtocol = activeProtocol || internalRunningTask?.protocol;
 
   useEffect(() => {
     // Generate particles only once on mount
@@ -119,33 +149,48 @@ const LoopingVoiceHUD = ({
 
   if (minimal) {
     return (
-      <div className="fixed bottom-20 sm:bottom-24 right-4 sm:right-6 z-30 flex items-center gap-2 px-3 py-1.5 rounded-full border border-primary/30 bg-background/90 backdrop-blur-md text-[10px] font-mono shadow-[0_0_20px_rgba(0,0,0,0.5)] transition-all">
+      <div
+        className={cn(
+          "fixed bottom-20 sm:bottom-24 right-4 sm:right-6 z-30 flex items-center gap-2 px-3.5 py-1.5 rounded-full border bg-background/90 backdrop-blur-md text-[10px] font-mono transition-all",
+          isExecuting
+            ? "border-accent/60 shadow-[0_0_25px_hsl(var(--accent)/0.5)] bg-background/95 animate-pulse"
+            : "border-primary/30 shadow-[0_0_20px_rgba(0,0,0,0.5)]"
+        )}
+      >
         <button
           type="button"
           onClick={handleToggleVoice}
-          className="flex items-center gap-1.5 cursor-pointer hover:opacity-80"
-          title={status === 'listening' ? "Click to stop listening" : "Click to speak or say 'Hermes'"}
+          className="flex items-center gap-2 cursor-pointer hover:opacity-80"
+          title={
+            isExecuting
+              ? "Task execution running in background"
+              : status === 'listening'
+              ? "Click to stop listening"
+              : "Click to speak or say 'Hermes'"
+          }
         >
           <span
             className={cn(
-              "h-2 w-2 rounded-full",
+              "h-2.5 w-2.5 rounded-full",
               isWakeWordDetected
+                ? "bg-accent animate-ping"
+                : isExecuting
                 ? "bg-accent animate-ping"
                 : effectiveStatus === 'listening'
                 ? "bg-destructive animate-pulse"
-                : effectiveStatus === 'thinking'
-                ? "bg-accent animate-spin"
                 : "bg-emerald-400 animate-pulse"
             )}
           />
-          <span className="font-bold text-primary">AMBIENT VOICE:</span>
-          <span className="text-foreground/90 font-sans font-bold">
+          <span className={cn("font-bold", isExecuting ? "text-accent" : "text-primary")}>
+            {isExecuting ? "⚡ EXECUTING:" : "AMBIENT VOICE:"}
+          </span>
+          <span className="text-foreground/90 font-sans font-bold truncate max-w-[200px] sm:max-w-[260px]">
             {isWakeWordDetected
               ? "⚡ WAKE DETECTED"
+              : isExecuting
+              ? currentTaskTitle || "INFERENCE IN WSL..."
               : effectiveStatus === 'listening'
               ? "🔴 LISTENING..."
-              : effectiveStatus === 'thinking'
-              ? "⚡ INFERENCE..."
               : 'SAY "HERMES"'}
           </span>
         </button>
@@ -338,7 +383,9 @@ const LoopingVoiceHUD = ({
             onClick={handleToggleVoice}
             onMouseEnter={() => soundFx.playHover()}
             title={
-              mode === 'auto'
+              isExecuting
+                ? 'Task execution running in background'
+                : mode === 'auto'
                 ? effectiveStatus === 'monitoring'
                   ? 'Ambient listening active for "Hermes" (or click to force wake)'
                   : 'Click to stop listening'
@@ -352,10 +399,10 @@ const LoopingVoiceHUD = ({
                 'absolute inset-0 rounded-full transition-colors',
                 isWakeWordDetected
                   ? 'bg-accent/40 border-2 border-accent animate-pulse shadow-[0_0_35px_hsl(var(--accent))]'
+                  : isExecuting
+                  ? 'bg-accent/30 border-2 border-accent animate-pulse shadow-[0_0_35px_hsl(var(--accent)/0.6)]'
                   : effectiveStatus === 'listening'
                   ? 'bg-destructive/30 border-2 border-destructive animate-pulse'
-                  : effectiveStatus === 'thinking'
-                  ? 'bg-accent/20 border-2 border-accent animate-spin-slow'
                   : effectiveStatus === 'monitoring'
                   ? 'bg-accent/15 border-2 border-accent/70'
                   : 'bg-primary/20 border-2 border-primary hover:bg-primary/30 hover:border-accent'
@@ -365,7 +412,7 @@ const LoopingVoiceHUD = ({
 
             <div
               className={cn(
-                'absolute inset-0 flex flex-col items-center justify-center text-primary/90 select-none',
+                'absolute inset-0 flex flex-col items-center justify-center text-primary/90 select-none px-2',
                 orbitron.className
               )}
             >
@@ -376,18 +423,21 @@ const LoopingVoiceHUD = ({
                     AWOKEN
                   </span>
                 </>
+              ) : isExecuting ? (
+                <>
+                  <Zap className="h-8 w-8 text-accent drop-shadow-[0_0_14px_hsl(var(--accent))] animate-bounce" />
+                  <span className="text-[10px] tracking-widest text-accent font-bold font-mono mt-0.5 animate-pulse">
+                    EXECUTING
+                  </span>
+                  <span className="text-[8px] tracking-wider text-foreground font-sans truncate max-w-[120px] text-center font-bold">
+                    {currentTaskTitle || "INFERENCE"}
+                  </span>
+                </>
               ) : effectiveStatus === 'listening' ? (
                 <>
                   <MicOff className="h-9 w-9 text-destructive drop-shadow-[0_0_10px_hsl(var(--destructive))]" />
                   <span className="text-[10px] tracking-widest text-destructive font-bold font-mono mt-1">
                     STOP
-                  </span>
-                </>
-              ) : effectiveStatus === 'thinking' ? (
-                <>
-                  <div className="h-8 w-8 rounded-full border-2 border-accent border-t-transparent animate-spin mb-1" />
-                  <span className="text-[9px] tracking-widest text-accent font-mono">
-                    THINKING
                   </span>
                 </>
               ) : effectiveStatus === 'monitoring' ? (
@@ -444,10 +494,10 @@ const LoopingVoiceHUD = ({
             'text-xs tracking-widest font-mono flex items-center justify-center gap-2',
             isWakeWordDetected
               ? 'text-accent font-bold animate-pulse'
+              : isExecuting
+              ? 'text-accent font-bold animate-pulse'
               : effectiveStatus === 'listening'
               ? 'text-destructive font-bold animate-pulse'
-              : effectiveStatus === 'thinking'
-              ? 'text-accent'
               : effectiveStatus === 'speaking'
               ? 'text-emerald-400'
               : effectiveStatus === 'monitoring'
@@ -461,15 +511,22 @@ const LoopingVoiceHUD = ({
               <Zap size={14} className="text-accent animate-bounce" />
               <span>⚡ "HERMES" AWOKEN! RECORDING COMMAND...</span>
             </>
+          ) : isExecuting ? (
+            <div className="flex flex-col items-center justify-center gap-1">
+              <div className="flex items-center gap-1.5 text-accent font-bold font-sans text-xs sm:text-sm">
+                <Zap size={15} className="text-accent animate-bounce" />
+                <span>⚡ EXECUTING TASK // {currentTaskTitle || "HERMES INFERENCE RUNNING IN WSL..."}</span>
+              </div>
+              {effectiveProtocol && (
+                <div className="text-[9px] text-primary/90 font-mono tracking-widest bg-accent/15 px-2.5 py-0.5 rounded-full border border-accent/40 shadow-[0_0_10px_hsl(var(--accent)/0.2)]">
+                  {effectiveProtocol}
+                </div>
+              )}
+            </div>
           ) : effectiveStatus === 'listening' ? (
             <>
               <span className="h-2 w-2 rounded-full bg-destructive animate-ping" />
               <span>RECORDING COMMAND... (SPEAK NOW)</span>
-            </>
-          ) : effectiveStatus === 'thinking' ? (
-            <>
-              <span className="h-2 w-2 rounded-full bg-accent animate-ping" />
-              <span>HERMES INFERENCE RUNNING IN WSL...</span>
             </>
           ) : effectiveStatus === 'speaking' ? (
             <>

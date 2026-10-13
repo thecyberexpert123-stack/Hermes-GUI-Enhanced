@@ -32,9 +32,20 @@ import { extractGodsEyeTarget, type GeoLocation } from '@/lib/godseye';
 interface VoiceHUDProps {
   closeDialog: () => void;
   onOpenChatWithSession?: (sessionId?: string) => void;
+  isLoading?: boolean;
+  activeTaskTitle?: string;
+  activeProtocol?: string;
+  onSendMessage?: (queryText: string) => void;
 }
 
-const VoiceHUD = ({ closeDialog, onOpenChatWithSession }: VoiceHUDProps) => {
+const VoiceHUD = ({
+  closeDialog,
+  onOpenChatWithSession,
+  isLoading: externalLoading = false,
+  activeTaskTitle: externalTaskTitle,
+  activeProtocol: externalProtocol,
+  onSendMessage,
+}: VoiceHUDProps) => {
   const [typedInput, setTypedInput] = useState('');
   const [particles, setParticles] = useState<React.CSSProperties[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | undefined>(undefined);
@@ -83,6 +94,21 @@ const VoiceHUD = ({ closeDialog, onOpenChatWithSession }: VoiceHUDProps) => {
       }
       window.dispatchEvent(new CustomEvent('hermes:open-godseye', { detail: loc ? { query: loc } : {} }));
     }
+
+    // Broadcast active task execution across all system HUDs
+    window.dispatchEvent(
+      new CustomEvent('hermes:open-task-execution', {
+        detail: {
+          title: text,
+          protocol: 'VOICE_TASK_EXECUTION',
+          isCompleted: false,
+        },
+      })
+    );
+
+    if (onSendMessage) {
+      onSendMessage(text);
+    }
     sendVoiceQuery(text);
   };
 
@@ -125,8 +151,46 @@ const VoiceHUD = ({ closeDialog, onOpenChatWithSession }: VoiceHUDProps) => {
     sessionId: currentSessionId,
     onQueryComplete: (query, res, sid) => {
       if (sid) setCurrentSessionId(sid);
+      window.dispatchEvent(
+        new CustomEvent('hermes:open-task-execution', {
+          detail: {
+            title: query,
+            protocol: 'VOICE_TASK_EXECUTION',
+            isCompleted: true,
+            realOutput: res,
+            sessionId: sid,
+          },
+        })
+      );
     },
   });
+
+  // Track active background task across all system components
+  const [internalRunningTask, setInternalRunningTask] = useState<{ title: string; protocol?: string } | null>(null);
+
+  useEffect(() => {
+    const handleTask = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const detail = customEvent.detail;
+      if (detail) {
+        if (detail.isCompleted) {
+          setInternalRunningTask(null);
+        } else if (detail.title) {
+          setInternalRunningTask({
+            title: detail.title,
+            protocol: detail.protocol || 'STARK PROTOCOL // AUTONOMOUS TASK',
+          });
+        }
+      }
+    };
+    window.addEventListener('hermes:open-task-execution', handleTask);
+    return () => window.removeEventListener('hermes:open-task-execution', handleTask);
+  }, []);
+
+  // Calculate working task execution state
+  const isExecuting = externalLoading || status === 'thinking' || !!externalTaskTitle || !!internalRunningTask;
+  const currentTaskTitle = externalTaskTitle || internalRunningTask?.title || (status === 'thinking' ? transcript || 'VOICE COMMAND INFERENCE' : undefined);
+  const currentProtocol = externalProtocol || internalRunningTask?.protocol || (isExecuting ? 'STARK PROTOCOL // NEMOTRON-3 TOOL INFERENCE' : undefined);
 
   useEffect(() => {
     const updated = frequencyBars.map((val, idx) => {
@@ -296,31 +360,32 @@ const VoiceHUD = ({ closeDialog, onOpenChatWithSession }: VoiceHUDProps) => {
         </div>
 
         <div className="flex items-center gap-1 text-[9px] uppercase tracking-wider">
-          {mode === 'auto' && status === 'monitoring' && (
+          {isExecuting ? (
+            <span className="text-accent font-bold animate-pulse flex items-center gap-1 bg-accent/20 px-2 py-0.5 rounded-full border border-accent/50 shadow-[0_0_12px_hsl(var(--accent)/0.3)]">
+              <Zap size={10} className="animate-bounce text-accent" />
+              <span>⚡ EXECUTING TASK</span>
+            </span>
+          ) : mode === 'auto' && status === 'monitoring' ? (
             <span className="text-emerald-400 flex items-center gap-1 font-bold">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping" />
               AMBIENT ON
             </span>
-          )}
-          {status === 'listening' && (
+          ) : status === 'listening' ? (
             <span className="text-destructive font-bold animate-pulse flex items-center gap-1">
               <span className="h-1.5 w-1.5 rounded-full bg-destructive animate-ping" />
               RECORDING
             </span>
-          )}
-          {status === 'thinking' && (
+          ) : status === 'thinking' ? (
             <span className="text-accent font-bold animate-pulse flex items-center gap-1">
               <Zap size={10} className="animate-bounce" />
               INFERENCE
             </span>
-          )}
-          {status === 'speaking' && (
+          ) : status === 'speaking' ? (
             <span className="text-emerald-400 font-bold flex items-center gap-1">
               <Volume2 size={10} />
               SPEAKING
             </span>
-          )}
-          {status === 'idle' && mode === 'manual' && (
+          ) : (
             <span className="text-primary/70">STANDBY</span>
           )}
         </div>
@@ -334,8 +399,8 @@ const VoiceHUD = ({ closeDialog, onOpenChatWithSession }: VoiceHUDProps) => {
             'absolute inset-0 rounded-full border transition-transform duration-100 ease-out',
             isWakeWordDetected
               ? 'border-accent shadow-[0_0_35px_hsl(var(--accent)/0.6)] scale-110'
-              : status === 'thinking'
-              ? 'animate-[spin_4s_linear_infinite] border-accent/60'
+              : isExecuting
+              ? 'animate-[spin_2.5s_linear_infinite] border-accent shadow-[0_0_35px_hsl(var(--accent)/0.7)] scale-105'
               : status === 'monitoring'
               ? 'animate-[spin_12s_linear_infinite] border-accent/30'
               : 'animate-[spin_20s_linear_infinite] border-primary/25'
@@ -349,7 +414,9 @@ const VoiceHUD = ({ closeDialog, onOpenChatWithSession }: VoiceHUDProps) => {
         <div
           className={cn(
             'absolute inset-3 rounded-full border border-dashed transition-transform duration-100',
-            status === 'speaking'
+            isExecuting
+              ? 'animate-[spin_4s_linear_infinite_reverse] border-accent'
+              : status === 'speaking'
               ? 'animate-[spin_6s_linear_infinite_reverse] border-primary'
               : status === 'monitoring'
               ? 'animate-[spin_8s_linear_infinite_reverse] border-primary/40'
@@ -378,6 +445,8 @@ const VoiceHUD = ({ closeDialog, onOpenChatWithSession }: VoiceHUDProps) => {
                   fill={
                     isHot
                       ? 'hsl(var(--destructive))'
+                      : isExecuting
+                      ? 'hsl(var(--accent))'
                       : status === 'speaking'
                       ? 'hsl(var(--accent))'
                       : status === 'monitoring'
@@ -385,7 +454,7 @@ const VoiceHUD = ({ closeDialog, onOpenChatWithSession }: VoiceHUDProps) => {
                       : 'hsl(var(--primary))'
                   }
                   opacity={
-                    status === 'listening' || status === 'speaking' || isWakeWordDetected
+                    status === 'listening' || status === 'speaking' || isWakeWordDetected || isExecuting
                       ? 0.95
                       : 0.35
                   }
@@ -397,8 +466,8 @@ const VoiceHUD = ({ closeDialog, onOpenChatWithSession }: VoiceHUDProps) => {
           </svg>
         </div>
 
-        {/* Speaking energy ripples */}
-        {status === 'speaking' && (
+        {/* Speaking & Execution energy ripples */}
+        {(status === 'speaking' || isExecuting) && (
           <>
             <div className="absolute inset-0 rounded-full border-2 border-accent animate-speaking-ripple" />
             <div className="absolute inset-0 rounded-full border-2 border-primary animate-speaking-ripple [animation-delay:0.35s]" />
@@ -417,6 +486,8 @@ const VoiceHUD = ({ closeDialog, onOpenChatWithSession }: VoiceHUDProps) => {
             'group relative z-10 h-16 w-16 sm:h-20 sm:w-20 rounded-full flex flex-col items-center justify-center transition-all duration-300 shadow-[0_0_25px_hsl(var(--primary)/0.3)] cursor-pointer',
             isWakeWordDetected
               ? 'bg-accent/40 border-2 border-accent scale-110 shadow-[0_0_35px_hsl(var(--accent))] animate-pulse'
+              : isExecuting
+              ? 'bg-accent/30 border-2 border-accent scale-105 shadow-[0_0_35px_hsl(var(--accent)/0.6)] animate-pulse'
               : status === 'listening'
               ? 'bg-destructive/30 border-2 border-destructive animate-pulse shadow-[0_0_30px_hsl(var(--destructive)/0.5)]'
               : status === 'thinking'
@@ -426,7 +497,9 @@ const VoiceHUD = ({ closeDialog, onOpenChatWithSession }: VoiceHUDProps) => {
               : 'bg-primary/20 border-2 border-primary hover:bg-primary/30 hover:border-accent hover:scale-105'
           )}
           title={
-            mode === 'auto'
+            isExecuting
+              ? 'Task execution currently active in WSL...'
+              : mode === 'auto'
               ? status === 'monitoring'
                 ? 'Ambient listening active for "Hermes" (or click to force wake)'
                 : 'Click to stop listening'
@@ -437,6 +510,8 @@ const VoiceHUD = ({ closeDialog, onOpenChatWithSession }: VoiceHUDProps) => {
         >
           {isWakeWordDetected ? (
             <Zap size={22} className="text-accent drop-shadow-[0_0_12px_hsl(var(--accent))] animate-bounce sm:h-6 sm:w-6" />
+          ) : isExecuting ? (
+            <Zap size={22} className="text-accent drop-shadow-[0_0_14px_hsl(var(--accent))] animate-bounce sm:h-6 sm:w-6" />
           ) : status === 'listening' ? (
             <MicOff size={22} className="text-destructive drop-shadow-[0_0_8px_hsl(var(--destructive))] sm:h-6 sm:w-6" />
           ) : status === 'monitoring' ? (
@@ -447,6 +522,8 @@ const VoiceHUD = ({ closeDialog, onOpenChatWithSession }: VoiceHUDProps) => {
           <span className="text-[8px] sm:text-[9px] font-bold tracking-widest text-primary mt-0.5 font-mono">
             {isWakeWordDetected
               ? 'AWOKEN'
+              : isExecuting
+              ? 'WORKING'
               : status === 'listening'
               ? 'STOP'
               : status === 'thinking'
@@ -460,7 +537,19 @@ const VoiceHUD = ({ closeDialog, onOpenChatWithSession }: VoiceHUDProps) => {
 
       {/* Dynamic Status Readout Label */}
       <div className={cn('text-center my-1 font-mono text-[11px] sm:text-xs tracking-widest shrink-0', orbitron.className)}>
-        {isWakeWordDetected ? (
+        {isExecuting ? (
+          <div className="flex flex-col items-center justify-center gap-1 animate-fade-in">
+            <span className="text-accent font-bold animate-pulse font-sans flex items-center justify-center gap-1.5 text-xs sm:text-sm">
+              <Zap size={14} className="animate-bounce text-accent" />
+              <span>⚡ EXECUTING TASK // {currentTaskTitle || "HERMES NEURAL INFERENCE"}</span>
+            </span>
+            {currentProtocol && (
+              <span className="text-[10px] text-muted-foreground font-mono tracking-wider bg-accent/10 px-2 py-0.5 rounded border border-accent/30 shadow-[0_0_10px_hsl(var(--accent)/0.2)]">
+                {currentProtocol}
+              </span>
+            )}
+          </div>
+        ) : isWakeWordDetected ? (
           <span className="text-accent font-bold animate-pulse font-sans">⚡ &quot;HERMES&quot; / &quot;JARVIS&quot; AWOKEN! RECORDING COMMAND...</span>
         ) : status === 'listening' ? (
           <span className="text-destructive font-bold animate-pulse font-sans">● RECORDING AUDIO... (AUTO-DETECTS PAUSE OR CLICK TO FINISH)</span>
@@ -477,6 +566,30 @@ const VoiceHUD = ({ closeDialog, onOpenChatWithSession }: VoiceHUDProps) => {
           <span className="text-primary/80 font-mono">READY // CLICK MIC OR TYPE BELOW</span>
         )}
       </div>
+
+      {/* Active Task Holographic Telemetry Box (Revealed when executing) */}
+      {isExecuting && (
+        <div className="w-full my-1.5 rounded-2xl border border-accent/40 bg-accent/10 p-2.5 backdrop-blur-md shadow-[0_0_25px_hsl(var(--accent)/0.15)] transition-all duration-300 animate-in fade-in zoom-in-95 shrink-0">
+          <div className="flex items-center justify-between border-b border-accent/20 pb-1 mb-1.5">
+            <div className="flex items-center gap-2">
+              <Activity size={13} className="text-accent animate-pulse" />
+              <span className="text-[10px] font-mono font-bold text-accent tracking-widest">
+                STARK TASK EXECUTION ACTIVE
+              </span>
+            </div>
+            <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-accent/20 text-accent font-bold animate-pulse border border-accent/30">
+              WSL2 ENGINE
+            </span>
+          </div>
+          <div className="flex items-center gap-2 text-xs font-sans font-bold text-foreground">
+            <Zap size={12} className="text-accent shrink-0 animate-bounce" />
+            <span className="truncate">{currentTaskTitle || "Processing autonomous instruction..."}</span>
+          </div>
+          <div className="relative h-1 w-full bg-background/50 rounded-full overflow-hidden mt-2">
+            <div className="absolute inset-y-0 left-0 bg-gradient-to-r from-accent via-primary to-accent rounded-full animate-pulse w-full" />
+          </div>
+        </div>
+      )}
 
       {/* Dedicated Microphone Input Audio Visualizer (Reveals when listening / speaking) */}
       {status === 'listening' || status === 'monitoring' || isVoiceActive ? (

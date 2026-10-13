@@ -101,6 +101,30 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
     if (!activeTaskId) return null;
     return tasksQueue.find((t) => t.id === activeTaskId) || null;
   }, [tasksQueue, activeTaskId]);
+
+  const activeRunningTask = useMemo(() => {
+    return tasksQueue.find((t) => !t.isCompleted) || (activeTask && !activeTask.isCompleted ? activeTask : null);
+  }, [tasksQueue, activeTask]);
+
+  const currentTaskTitle = useMemo(() => {
+    if (activeRunningTask && !activeRunningTask.isCompleted) {
+      return activeRunningTask.title;
+    }
+    if (isLoading) {
+      return "HERMES NEURAL INFERENCE";
+    }
+    return undefined;
+  }, [activeRunningTask, isLoading]);
+
+  const currentProtocol = useMemo(() => {
+    if (activeRunningTask && !activeRunningTask.isCompleted) {
+      return activeRunningTask.protocol;
+    }
+    if (isLoading) {
+      return "STARK PROTOCOL // NEMOTRON-3 INFERENCE";
+    }
+    return undefined;
+  }, [activeRunningTask, isLoading]);
   const [isVoiceOpen, setIsVoiceOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
@@ -1401,7 +1425,14 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
       <div className="flex-1 w-full max-w-4xl flex flex-col items-center justify-center overflow-hidden pt-11 sm:pt-14 pb-1 z-10 min-h-0">
         {messages.length === 0 && !isLoading ? (
           <div className="flex flex-col items-center justify-center gap-1 sm:gap-2 w-full my-auto">
-            {!isVoiceOpen && <LoopingVoiceHUD onSendMessage={sendQuery} isLoading={isLoading} />}
+            {!isVoiceOpen && (
+              <LoopingVoiceHUD
+                onSendMessage={sendQuery}
+                isLoading={isLoading || !!activeRunningTask}
+                activeTaskTitle={currentTaskTitle}
+                activeProtocol={currentProtocol}
+              />
+            )}
 
             {/* Quick Action Pills */}
             <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 max-w-2xl px-4 z-20 mt-1 mb-3">
@@ -1432,7 +1463,15 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
                 )}
               </div>
             </ScrollArea>
-            {!isVoiceOpen && <LoopingVoiceHUD onSendMessage={sendQuery} isLoading={isLoading} minimal />}
+            {!isVoiceOpen && (
+              <LoopingVoiceHUD
+                onSendMessage={sendQuery}
+                isLoading={isLoading || !!activeRunningTask}
+                activeTaskTitle={currentTaskTitle}
+                activeProtocol={currentProtocol}
+                minimal
+              />
+            )}
           </>
         )}
       </div>
@@ -1768,7 +1807,7 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
 
       {/* Marvel J.A.R.V.I.S. Smart Task Execution & Debrief Screen */}
       <JarvisExecutionScreen
-        isOpen={!!activeTask}
+        isOpen={!!activeTask && !isVoiceOpen}
         taskTitle={activeTask?.title || 'Hermes Neural Inference'}
         protocolName={activeTask?.protocol || 'STARK PROTOCOL // AGENT CORE'}
         command={activeTask?.command}
@@ -1915,6 +1954,10 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
               onOpenChatWithSession={(sid) => {
                 if (sid) handleSelectSessionInternal(sid);
               }}
+              isLoading={isLoading || !!activeRunningTask}
+              activeTaskTitle={currentTaskTitle}
+              activeProtocol={currentProtocol}
+              onSendMessage={sendQuery}
             />
           )}
         </DialogContent>

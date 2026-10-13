@@ -12,6 +12,7 @@ export interface UseWisprFlowOptions {
   autoSubmitDefault?: boolean;
   defaultExecutionMode?: WisprExecutionMode;
   defaultActivationMode?: WisprActivationMode;
+  autoLaunch?: boolean;
   onNewDictation?: (dictation: WisprDictation) => void;
   onAutoSubmit?: (text: string) => void;
   onPendingApproval?: (dictation: WisprDictation) => void;
@@ -23,6 +24,7 @@ export function useWisprFlow(options: UseWisprFlowOptions = {}) {
     autoSubmitDefault = false,
     defaultExecutionMode = 'manual_approve',
     defaultActivationMode = 'key_ptt',
+    autoLaunch = true,
     onNewDictation,
     onAutoSubmit,
     onPendingApproval,
@@ -61,6 +63,7 @@ export function useWisprFlow(options: UseWisprFlowOptions = {}) {
   // Pending dictation waiting for operator approval
   const [pendingDictation, setPendingDictation] = useState<WisprDictation | null>(null);
 
+  const autoLaunchAttemptedRef = useRef(false);
   const lastKnownIdRef = useRef<string | null>(null);
   const onNewDictationRef = useRef(onNewDictation);
   const onAutoSubmitRef = useRef(onAutoSubmit);
@@ -141,6 +144,16 @@ export function useWisprFlow(options: UseWisprFlowOptions = {}) {
       setKeybinds(data.keybinds);
       setRecentDictations(data.recentDictations || []);
       setTotalDictationsCount(data.totalDictationsCount || 0);
+
+      // Silent Auto-Launch Wispr Flow if installed but not running
+      if (data.installed && !data.running && autoLaunch && !autoLaunchAttemptedRef.current) {
+        autoLaunchAttemptedRef.current = true;
+        fetch('/api/system/wispr-flow', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'launch' }),
+        }).catch(() => {});
+      }
 
       const latest = data.lastDictation;
       if (latest) {
