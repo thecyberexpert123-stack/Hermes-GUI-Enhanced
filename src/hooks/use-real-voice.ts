@@ -637,7 +637,7 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
           setError('Inference timed out in WSL. Resetting voice state.');
           setStatus('idle');
         }
-      }, 28000);
+      }, 80000);
 
       try {
         const res = await fetch('/api/hermes/chat', {
@@ -852,7 +852,7 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
                     hasSubmittedRef.current = true;
                     sendVoiceQuery(activeTranscriptRef.current);
                   }
-                }, 1800);
+                }, 1100);
               }
             }
             return;
@@ -874,7 +874,7 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
                   hasSubmittedRef.current = true;
                   sendVoiceQuery(activeTranscriptRef.current);
                 }
-              }, 1800);
+              }, 1100);
             }
           }
         };

@@ -339,12 +339,14 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
                 languageCode: 'en-IN',
               });
               if (transcript && transcript.trim()) {
-                setInput((prev) => (prev.trim() ? `${prev.trim()} ${transcript.trim()}` : transcript.trim()));
+                const cleanTranscript = transcript.trim();
+                setInput(cleanTranscript);
                 soundFx.playChirp();
                 toast({
-                  title: "Sarvam AI Voice Transcribed",
-                  description: `"${transcript.trim()}"`,
+                  title: "🎙️ Voice Command Dispatched",
+                  description: `"${cleanTranscript}"`,
                 });
+                sendQuery(cleanTranscript);
               } else {
                 toast({
                   title: "Sarvam STT Completed",
@@ -509,18 +511,30 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
       rec.interimResults = true;
       rec.lang = 'en-US';
 
-      rec.onstart = () => setIsRecordingInput(true);
+      let capturedSpeech = '';
+      rec.onstart = () => {
+        capturedSpeech = '';
+        setIsRecordingInput(true);
+      };
       rec.onresult = (event: any) => {
         let currentText = '';
         for (let i = 0; i < event.results.length; ++i) {
           currentText += event.results[i][0].transcript;
         }
         if (currentText) {
-          setInput(currentText);
+          capturedSpeech = currentText.trim();
+          setInput(capturedSpeech);
         }
       };
       rec.onerror = () => setIsRecordingInput(false);
-      rec.onend = () => setIsRecordingInput(false);
+      rec.onend = () => {
+        setIsRecordingInput(false);
+        if (capturedSpeech) {
+          soundFx.playChirp();
+          sendQuery(capturedSpeech);
+          capturedSpeech = '';
+        }
+      };
 
       barRecognitionRef.current = rec;
       rec.start();
@@ -1135,6 +1149,19 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
             <span className="text-[10px] px-1 py-0.2 bg-accent/20 rounded font-bold font-mono">/</span>
           </button>
 
+          {/* Voice HUD & Ambient Voice Launcher */}
+          <button
+            onClick={() => {
+              soundFx.playClick(1100);
+              setIsVoiceOpen(true);
+            }}
+            className="flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-2 sm:px-2.5 py-1.5 text-xs font-mono text-primary hover:text-accent hover:bg-primary/20 hover:border-accent hover:shadow-[0_0_15px_hsl(var(--primary)/0.3)] transition-all shrink-0 cursor-pointer"
+            title="Open Hermes Voice Interaction & Speech HUD [/voice]"
+          >
+            <Mic size={13} className="text-accent animate-pulse" />
+            <span className="hidden xl:inline text-[11px] font-bold">VOICE HUD</span>
+          </button>
+
           {/* God's Eye 3D Satellite & OSINT Launcher */}
           <button
             onClick={() => {
@@ -1233,20 +1260,23 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
             </div>
           </div>
         ) : (
-          <ScrollArea className="h-full w-full" ref={scrollAreaRef}>
-            <div className="flex flex-col gap-6 p-4 max-w-3xl mx-auto">
-              {messages.map((m) => (
-                <ChatMessage
-                  key={m.id}
-                  message={m}
-                  onExecuteCommand={(cmd) => sendQuery(cmd, true)}
-                />
-              ))}
-              {isLoading && !messages.some((m) => m.taskMeta?.status === 'RUNNING') && (
-                <ChatMessage message={{ id: 'thinking', role: 'model', content: '' }} />
-              )}
-            </div>
-          </ScrollArea>
+          <>
+            <ScrollArea className="h-full w-full" ref={scrollAreaRef}>
+              <div className="flex flex-col gap-6 p-4 max-w-3xl mx-auto">
+                {messages.map((m) => (
+                  <ChatMessage
+                    key={m.id}
+                    message={m}
+                    onExecuteCommand={(cmd) => sendQuery(cmd, true)}
+                  />
+                ))}
+                {isLoading && !messages.some((m) => m.taskMeta?.status === 'RUNNING') && (
+                  <ChatMessage message={{ id: 'thinking', role: 'model', content: '' }} />
+                )}
+              </div>
+            </ScrollArea>
+            {!isVoiceOpen && <LoopingVoiceHUD onSendMessage={sendQuery} isLoading={isLoading} minimal />}
+          </>
         )}
       </div>
 

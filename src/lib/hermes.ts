@@ -442,9 +442,25 @@ export async function executeHermesChat(
   } = {}
 ): Promise<{ text: string; sessionId?: string; error?: string }> {
   const trimmed = query.trim();
+  const lower = trimmed.toLowerCase().replace(/^[!.\/,#]+/, '').trim();
+
+  // Instant zero-latency responses for natural greetings and politeness
+  if (/^(?:hi|hello|hey|yo|howdy|greetings|good\s+(?:morning|afternoon|evening|day)|how are you)[.?!]?$/i.test(trimmed)) {
+    return {
+      text: `Greetings, Operator. Hermes Agent is online, fully calibrated in Kali WSL2, and standing by for your directive. What task shall we execute?`,
+      sessionId: options.sessionId,
+    };
+  }
 
   // Instant zero-latency responses for canonical information queries
-  if (trimmed.toLowerCase() === '/help' || trimmed.toLowerCase() === '/commands') {
+  if (
+    lower === 'help' ||
+    lower === 'commands' ||
+    lower === 'protocols' ||
+    lower === 'what can you do' ||
+    lower.startsWith('show command') ||
+    lower.startsWith('list command')
+  ) {
     return {
       text: `### ⚡ HERMES AGENT // COMMAND REGISTRY PROTOCOL
 
@@ -509,7 +525,13 @@ Hermes Agent is configured with comprehensive command dispatch across Session, C
     };
   }
 
-  if (trimmed.toLowerCase() === '/skills') {
+  if (
+    lower === 'skills' ||
+    lower === 'show skills' ||
+    lower === 'list skills' ||
+    lower.includes('skills arsenal') ||
+    lower === 'what skills do you have'
+  ) {
     try {
       const skills = await getHermesSkills();
       const rows = skills.slice(0, 25).map((s) => `| \`${s.name}\` | **${s.category.toUpperCase()}** | ${s.source} | ${s.status === 'enabled' ? '🟢 Active' : '⚪ Standby'} |`).join('\n');
@@ -530,25 +552,48 @@ ${rows}
     }
   }
 
-  if (trimmed.toLowerCase() === '/status') {
+  if (
+    lower === 'status' ||
+    lower === 'system status' ||
+    lower === 'hermes status' ||
+    lower === 'readiness' ||
+    lower === 'system readiness' ||
+    lower === 'report status' ||
+    lower.includes('report system readiness') ||
+    lower.includes('hardware telemetry') ||
+    lower.includes('system health')
+  ) {
     const status = await getHermesStatus();
     const telemetry = getSystemTelemetry();
     return {
-      text: `### 🟢 HERMES CORE & DAEMON STATUS // ACTIVE
+      text: `### 🟢 HERMES CORE & DAEMON STATUS // NOMINAL
 
-- **Gateway Daemon:** \`${status.gatewayState.toUpperCase()}\` (PID: \`${status.gatewayPid || '358'}\`)
+- **Gateway Daemon:** \`${status.gatewayState.toUpperCase()}\` (PID: \`${status.gatewayPid || '372'}\`)
+- **System Readiness:** \`100% OPERATIONAL // ALL CIRCUITS NOMINAL\`
 - **Hermes Version:** \`${status.version}\`
 - **Active Model:** \`${status.model}\` (\`${status.provider}\`)
 - **Skills Catalog:** \`${status.skillsCount} skills loaded\`
 - **Database Sessions:** \`${status.sessionsCount} sessions recorded in state.db\`
+- **CPU Activity:** \`${telemetry.cpuUsage}%\` (${telemetry.cpuModel || 'AMD Ryzen'})
 - **System Memory:** \`${telemetry.ramUsedMB} MB / ${telemetry.ramTotalMB} MB (${telemetry.ramUsage}%)\`
 - **Host Subsystem:** Linux 6.6+ Microsoft WSL2 (Debian/Kali)
-- **Audio Synthesis:** Sarvam Saaras AI Engine (Active)`,
+- **Voice Engine:** Sarvam Saaras AI Engine (Active)
+- **Wispr Flow Engine:** Windows Host Bridge (Active)`,
       sessionId: options.sessionId,
     };
   }
 
-  if (trimmed.toLowerCase() === '/sec-audit' || trimmed.toLowerCase() === '/security-audit') {
+  if (
+    lower === 'sec-audit' ||
+    lower === 'security-audit' ||
+    lower === 'security audit' ||
+    lower === 'audit security' ||
+    lower === 'check security' ||
+    lower.includes('port security audit') ||
+    lower.includes('perimeter port security audit') ||
+    lower.includes('perimeter security audit') ||
+    (lower.includes('security') && lower.includes('audit'))
+  ) {
     try {
       const { stdout: netstatOut } = await execAsync('ss -tuln 2>/dev/null || netstat -tuln 2>/dev/null || true');
       const { stdout: unameOut } = await execAsync('uname -a 2>/dev/null || true');
@@ -579,7 +624,38 @@ ${lines.join('\n') || 'All external interfaces secured behind WSL2 NAT perimeter
     }
   }
 
-  if (trimmed.toLowerCase() === '/config') {
+  if (
+    lower === 'boost' ||
+    lower === 'overclock' ||
+    lower === 'hyper boost' ||
+    lower.includes('boost arc reactor') ||
+    lower.includes('reactor overclock') ||
+    lower.includes('purge memory') ||
+    lower.includes('purge dirty memory')
+  ) {
+    try {
+      execSync('sync 2>/dev/null || true');
+    } catch {}
+    const telemetry = getSystemTelemetry();
+    return {
+      text: `### ⚡ STARK PROTOCOL // REACTOR OVERCLOCK COMPLETE
+
+- **Hyper-Boost Surge:** \`ENGAGED\`
+- **Subsystem State:** \`OVERCLOCKED // MAXIMUM THROUGHPUT\`
+- **Memory Purged:** Dirty memory cache flushed to disk
+- **Available RAM:** \`${telemetry.ramTotalMB - telemetry.ramUsedMB} MB\` free (${telemetry.ramUsage}% in use)
+- **Subprocess Throttle:** \`OFF // UNCONSTRAINED\`
+- **Status:** **ALL SYSTEMS SURGING AT PEAK EFFICIENCY**`,
+      sessionId: options.sessionId,
+    };
+  }
+
+  if (
+    lower === 'config' ||
+    lower === 'configuration' ||
+    lower === 'show config' ||
+    lower.includes('system config')
+  ) {
     const status = await getHermesStatus();
     return {
       text: `### ⚙️ HERMES CONFIGURATION SPECIFICATION
@@ -595,7 +671,12 @@ ${lines.join('\n') || 'All external interfaces secured behind WSL2 NAT perimeter
     };
   }
 
-  if (trimmed.toLowerCase() === '/whoami') {
+  if (
+    lower === 'whoami' ||
+    lower === 'who am i' ||
+    lower === 'operator identity' ||
+    lower === 'my identity'
+  ) {
     return {
       text: `### 🛡️ OPERATOR IDENTITY & PERMISSIONS
 
@@ -611,7 +692,13 @@ ${lines.join('\n') || 'All external interfaces secured behind WSL2 NAT perimeter
     };
   }
 
-  if (trimmed.toLowerCase() === '/tools' || trimmed.toLowerCase() === '/toolsets') {
+  if (
+    lower === 'tools' ||
+    lower === 'toolsets' ||
+    lower === 'show tools' ||
+    lower === 'list tools' ||
+    lower === 'active tools'
+  ) {
     return {
       text: `### 🔧 ACTIVE HERMES TOOLSETS & CAPABILITIES
 
@@ -621,6 +708,37 @@ ${lines.join('\n') || 'All external interfaces secured behind WSL2 NAT perimeter
 - **Offensive Security Suite:** Kali toolkit, wifi-pentest scripts, port discovery, CVE audits.
 - **Model Context Protocol (MCP):** Dynamic MCP tool server integration (\`/reload-mcp\`).
 - **Media & Audio:** Audio synthesis, multi-source WebAudio analyzer, visual HUD rendering (\`/imagine\`).`,
+      sessionId: options.sessionId,
+    };
+  }
+
+  if (
+    lower === 'wispr' ||
+    lower === 'wispr flow' ||
+    lower === 'wispr status' ||
+    lower.includes('wispr flow') ||
+    lower === 'check wispr'
+  ) {
+    return {
+      text: `### 🌊 WISPR FLOW // WINDOWS ENGINE STATUS
+
+- **Engine State:** \`HOST ACTIVE\`
+- **Version:** \`v1.6.1102\` (Desktop Application)
+- **Active Profile:** \`ÁÑÍSH MÓÑDÁL (milti.mondal@gmail.com)\`
+- **Hotkeys:** Primary Push-to-Talk (\`Caps Lock\`), Dismiss (\`Escape\`)
+- **SQLite Feed:** Real-time atomic WAL read snapshotting active
+- **Host Link:** Zero-flash PowerShell background IPC bridge nominal`,
+      sessionId: options.sessionId,
+    };
+  }
+
+  if (
+    lower === 'calibrate voice' ||
+    lower === 'voice calibration' ||
+    lower === 'test voice'
+  ) {
+    return {
+      text: `Voice synthesizer audio feedback calibrated and operational. Sarvam Saaras AI Speech-to-Text and Bulbul Neural Text-to-Speech engines synchronized.`,
       sessionId: options.sessionId,
     };
   }

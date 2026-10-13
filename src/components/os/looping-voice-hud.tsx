@@ -10,9 +10,14 @@ import { useRealVoice } from '@/hooks/use-real-voice';
 interface LoopingVoiceHUDProps {
   onSendMessage?: (queryText: string) => void;
   isLoading?: boolean;
+  minimal?: boolean;
 }
 
-const LoopingVoiceHUD = ({ onSendMessage, isLoading: externalLoading }: LoopingVoiceHUDProps) => {
+const LoopingVoiceHUD = ({
+  onSendMessage,
+  isLoading: externalLoading,
+  minimal = false,
+}: LoopingVoiceHUDProps) => {
   const [particles, setParticles] = useState<React.CSSProperties[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
   const coreRef = useRef<HTMLDivElement>(null);
@@ -111,6 +116,42 @@ const LoopingVoiceHUD = ({ onSendMessage, isLoading: externalLoading }: LoopingV
       startListening();
     }
   };
+
+  if (minimal) {
+    return (
+      <div className="fixed bottom-20 sm:bottom-24 right-4 sm:right-6 z-30 flex items-center gap-2 px-3 py-1.5 rounded-full border border-primary/30 bg-background/90 backdrop-blur-md text-[10px] font-mono shadow-[0_0_20px_rgba(0,0,0,0.5)] transition-all">
+        <button
+          type="button"
+          onClick={handleToggleVoice}
+          className="flex items-center gap-1.5 cursor-pointer hover:opacity-80"
+          title={status === 'listening' ? "Click to stop listening" : "Click to speak or say 'Hermes'"}
+        >
+          <span
+            className={cn(
+              "h-2 w-2 rounded-full",
+              isWakeWordDetected
+                ? "bg-accent animate-ping"
+                : effectiveStatus === 'listening'
+                ? "bg-destructive animate-pulse"
+                : effectiveStatus === 'thinking'
+                ? "bg-accent animate-spin"
+                : "bg-emerald-400 animate-pulse"
+            )}
+          />
+          <span className="font-bold text-primary">AMBIENT VOICE:</span>
+          <span className="text-foreground/90 font-sans font-bold">
+            {isWakeWordDetected
+              ? "⚡ WAKE DETECTED"
+              : effectiveStatus === 'listening'
+              ? "🔴 LISTENING..."
+              : effectiveStatus === 'thinking'
+              ? "⚡ INFERENCE..."
+              : 'SAY "HERMES"'}
+          </span>
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="relative flex flex-col items-center justify-center">
