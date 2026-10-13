@@ -176,26 +176,17 @@ export const JarvisExecutionScreen: React.FC<TaskExecutionProps> = ({
   const [selectedDiffIndex, setSelectedDiffIndex] = useState(0);
   const [diffApplyStatus, setDiffApplyStatus] = useState<string | null>(null);
 
-  const [processes, setProcesses] = useState<ProcessItem[]>([
-    { pid: '358', name: 'hermes-gateway', app: 'Hermes Agent Core (PID 358)', cpu: '3.8%', mem: '6.7%', status: 'RUNNING' },
-    { pid: '1', name: 'systemd', app: 'Kali WSL2 Systemd Core', cpu: '0.0%', mem: '0.2%', status: 'ACTIVE' },
-    { pid: '15724', name: 'next-server', app: 'Studio Next.js V8 Engine', cpu: '3.9%', mem: '5.1%', status: 'ACTIVE' },
-    { pid: '4299', name: 'vite (godseye)', app: "God's Eye Cesium Engine", cpu: '0.8%', mem: '2.1%', status: 'ACTIVE' },
-    { pid: '1842', name: 'uv / python3', app: 'uv Python 3.14 Isolation', cpu: '4.2%', mem: '3.4%', status: 'RUNNING' },
-    { pid: '2056', name: 'bash', app: 'Kali Linux Terminal PTY', cpu: '0.2%', mem: '1.1%', status: 'ACTIVE' },
-    { pid: '921', name: 'sshd', app: 'Kali SSH Perimeter', cpu: '0.0%', mem: '0.8%', status: 'SLEEP' },
-    { pid: '1105', name: 'sqlite3-wal', app: 'SQLite WAL State Storage', cpu: '0.1%', mem: '1.4%', status: 'ACTIVE' },
-  ]);
+  const [processes, setProcesses] = useState<ProcessItem[]>([]);
 
   const [telemetry, setTelemetry] = useState<RealTelemetry>({
-    cpuUsage: 22,
-    ramUsage: 28.9,
-    ramUsedMB: 1026,
-    ramTotalMB: 3549,
-    diskUsage: 5.6,
-    networkInMbps: 2.4,
-    networkOutMbps: 0.8,
-    coreTemp: 42,
+    cpuUsage: -1,
+    ramUsage: -1,
+    ramUsedMB: 0,
+    ramTotalMB: 0,
+    diskUsage: 0,
+    networkInMbps: 0,
+    networkOutMbps: 0,
+    coreTemp: -1,
   });
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -213,19 +204,17 @@ export const JarvisExecutionScreen: React.FC<TaskExecutionProps> = ({
         if (res.ok) {
           const data = await res.json();
           setTelemetry({
-            cpuUsage: data.cpuUsage ?? 22,
-            ramUsage: data.ramUsage ?? 29,
-            ramUsedMB: data.ramUsedMB ?? 1026,
-            ramTotalMB: data.ramTotalMB ?? 3549,
-            diskUsage: data.diskUsage ?? 5.6,
-            networkInMbps: data.networkInMbps ?? 2.4,
-            networkOutMbps: data.networkOutMbps ?? 0.8,
-            coreTemp: 42,
+            cpuUsage: data.cpuUsage ?? -1,
+            ramUsage: data.ramUsage ?? -1,
+            ramUsedMB: data.ramUsedMB ?? 0,
+            ramTotalMB: data.ramTotalMB ?? 0,
+            diskUsage: data.diskUsage ?? 0,
+            networkInMbps: data.networkInMbps ?? 0,
+            networkOutMbps: data.networkOutMbps ?? 0,
+            coreTemp: data.cpuTemperatureC ?? -1,
           });
 
-          if (Array.isArray(data.topProcesses) && data.topProcesses.length > 0) {
-            setProcesses(data.topProcesses);
-          }
+          setProcesses(Array.isArray(data.topProcesses) ? data.topProcesses : []);
         }
       } catch {}
     };

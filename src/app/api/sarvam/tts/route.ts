@@ -7,13 +7,17 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const {
       text,
-      speaker = 'simran',
+      speaker: requestedSpeaker,
       languageCode = 'en-IN',
       pace = 1.0,
       pitch = 0,
       model = 'bulbul:v3',
       apiKey: clientApiKey,
     } = body;
+
+    if (!['bulbul:v2', 'bulbul:v3', 'bulbul:v4-flash'].includes(model)) {
+      return NextResponse.json({ error: 'Unsupported Sarvam TTS model' }, { status: 400 });
+    }
 
     const apiKey = clientApiKey || process.env.SARVAM_API_KEY;
 
@@ -31,8 +35,37 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Text prompt is required' }, { status: 400 });
     }
 
-    // Limit text chunk size to Sarvam's recommended limits (under 500 characters per request)
-    const trimmedText = text.trim().slice(0, 500);
+    const maxLength = model === 'bulbul:v2' ? 1500 : 2500;
+    const trimmedText = text.trim();
+    if (trimmedText.length > maxLength) {
+      return NextResponse.json(
+        { error: `Text exceeds the ${maxLength}-character limit for ${model}` },
+        { status: 413 }
+      );
+    }
+
+    const speaker = typeof requestedSpeaker === 'string' && requestedSpeaker.trim()
+      ? requestedSpeaker.trim()
+      : model === 'bulbul:v4-flash'
+        ? undefined
+        : model === 'bulbul:v2'
+          ? 'anushka'
+          : 'simran';
+
+    const payload: Record<string, unknown> = {
+      inputs: [trimmedText],
+      target_language_code: languageCode,
+      pace,
+      speech_sample_rate: 22050,
+      model,
+    };
+    if (speaker) payload.speaker = speaker;
+    // Bulbul v3 and v4-flash reject the legacy v2 pitch/loudness/preprocessing fields.
+    if (model === 'bulbul:v2') {
+      payload.pitch = pitch;
+      payload.loudness = 1.5;
+      payload.enable_preprocessing = true;
+    }
 
     const sarvamRes = await fetch('https://api.sarvam.ai/text-to-speech', {
       method: 'POST',
@@ -41,17 +74,7 @@ export async function POST(req: NextRequest) {
         'api-subscription-key': apiKey.trim(),
       },
       signal: AbortSignal.timeout(12000),
-      body: JSON.stringify({
-        inputs: [trimmedText],
-        target_language_code: languageCode,
-        speaker: speaker,
-        pitch: pitch,
-        pace: pace,
-        loudness: 1.5,
-        speech_sample_rate: 22050,
-        enable_preprocessing: true,
-        model: model,
-      }),
+      body: JSON.stringify(payload),
     });
 
     if (!sarvamRes.ok) {
@@ -76,7 +99,7 @@ export async function POST(req: NextRequest) {
       audio: `data:audio/wav;base64,${base64Audio}`,
       rawBase64: base64Audio,
       model: model,
-      speaker: speaker,
+      speaker: speaker || null,
     });
   } catch (error: any) {
     console.error('Sarvam TTS error:', error);

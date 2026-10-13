@@ -7,8 +7,8 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const file = formData.get('file');
     const model = (formData.get('model') as string) || 'saaras:v3';
-    const rawLang = formData.get('language_code') as string;
-    const languageCode = rawLang && rawLang !== 'unknown' ? rawLang : 'en-IN';
+    const rawLang = formData.get('language_code');
+    const languageCode = typeof rawLang === 'string' && rawLang.trim() ? rawLang.trim() : 'unknown';
     const clientApiKey = formData.get('apiKey') as string | null;
 
     const apiKey = clientApiKey || process.env.SARVAM_API_KEY;
@@ -26,11 +26,17 @@ export async function POST(req: NextRequest) {
     if (!file || !(file instanceof Blob)) {
       return NextResponse.json({ error: 'Audio file is required in formData' }, { status: 400 });
     }
+    if (file.size === 0) {
+      return NextResponse.json({ error: 'Audio file is empty' }, { status: 400 });
+    }
+    if (file.size > 20 * 1024 * 1024) {
+      return NextResponse.json({ error: 'Audio file exceeds the 20 MB limit' }, { status: 413 });
+    }
 
     const rawMime = (file as Blob).type || '';
     // Strip any parameters (e.g. ';codecs=opus') to prevent Sarvam 400 rejection
     let cleanMime = rawMime.split(';')[0].trim().toLowerCase();
-    let ext = 'wav';
+    let ext = '';
 
     if (cleanMime.includes('webm')) {
       cleanMime = 'audio/webm';
@@ -41,15 +47,32 @@ export async function POST(req: NextRequest) {
     } else if (cleanMime.includes('mp3') || cleanMime.includes('mpeg')) {
       cleanMime = 'audio/mp3';
       ext = 'mp3';
-    } else if (cleanMime.includes('wav')) {
+    } else if (cleanMime.includes('wav') || cleanMime.includes('wave')) {
       cleanMime = 'audio/wav';
       ext = 'wav';
-    } else if (cleanMime.includes('aac') || cleanMime.includes('m4a')) {
-      cleanMime = 'audio/aac';
+    } else if (cleanMime.includes('mp4') || cleanMime.includes('m4a')) {
+      cleanMime = 'audio/mp4';
       ext = 'm4a';
+    } else if (cleanMime.includes('aac')) {
+      cleanMime = 'audio/aac';
+      ext = 'aac';
+    } else if (cleanMime.includes('flac')) {
+      cleanMime = 'audio/flac';
+      ext = 'flac';
+    } else if (cleanMime.includes('aiff')) {
+      cleanMime = 'audio/aiff';
+      ext = 'aiff';
+    } else if (cleanMime.includes('amr')) {
+      cleanMime = 'audio/amr';
+      ext = 'amr';
+    } else if (cleanMime.includes('wma')) {
+      cleanMime = 'audio/x-ms-wma';
+      ext = 'wma';
     } else {
-      cleanMime = 'audio/wav';
-      ext = 'wav';
+      return NextResponse.json(
+        { error: `Unsupported or missing audio format: ${rawMime || 'unknown'}` },
+        { status: 415 }
+      );
     }
 
     const arrayBuffer = await file.arrayBuffer();

@@ -63,6 +63,7 @@ export const WisprFlowModal: React.FC<WisprFlowModalProps> = ({
   } = useWisprFlow({
     pollingIntervalMs: isOpen ? 1500 : 4000,
   });
+  const pttShortcut = keybinds.find((keybind) => keybind.action.toLowerCase() === 'ptt')?.keys || 'Not configured';
 
   if (!isOpen) return null;
 
@@ -221,7 +222,7 @@ export const WisprFlowModal: React.FC<WisprFlowModalProps> = ({
               <div className="space-y-1 text-xs font-mono">
                 <div className="flex justify-between text-muted-foreground">
                   <span>Dictation Hotkey:</span>
-                  <span className="text-foreground font-bold text-accent">Caps Lock [PTT]</span>
+                  <span className="text-foreground font-bold text-accent">{pttShortcut} [PTT]</span>
                 </div>
                 <div className="flex justify-between text-muted-foreground">
                   <span>Total Transcriptions:</span>
@@ -233,10 +234,11 @@ export const WisprFlowModal: React.FC<WisprFlowModalProps> = ({
                 <Button
                   size="sm"
                   onClick={triggerPtt}
+                  disabled={!isRunning || pttShortcut === 'Not configured'}
                   className="flex-1 h-7 text-[10px] font-mono bg-accent/20 hover:bg-accent/30 text-accent border border-accent/50 cursor-pointer"
                 >
                   <Mic size={12} className="mr-1" />
-                  Toggle PTT [Caps Lock]
+                  Trigger PTT [{pttShortcut}]
                 </Button>
                 <Button
                   size="sm"

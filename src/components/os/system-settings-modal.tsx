@@ -213,7 +213,7 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ onOpen
       if (res.ok) {
         toast({
           title: "Hyper-Optimization Complete",
-          description: `Reclaimed ${data.freedMB || 50} MB RAM. Flushed disk buffers & compacted SQLite journals.`,
+          description: `Observed ${data.freedMB ?? 0} MB RAM decrease. ${data.details?.join('; ') || 'System maintenance completed.'}`,
         });
       }
     } catch {

@@ -32,15 +32,66 @@ export default function Home() {
   });
   const [activeSessionId, setActiveSessionId] = useState<string | undefined>(undefined);
 
+  const changeMode = useCallback((nextMode: AppMode) => {
+    setMode(nextMode);
+    try {
+      localStorage.setItem('hermes_app_mode', nextMode);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const requestedMode = params.get('mode');
+      if (requestedMode === 'hud' || requestedMode === 'chat') return;
+
+      const savedMode = localStorage.getItem('hermes_app_mode');
+      if (savedMode === 'hud' || savedMode === 'chat') setMode(savedMode);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const restoreLastSession = async () => {
+      try {
+        const savedSessionId = localStorage.getItem('hermes_last_session_id');
+        if (savedSessionId !== null) {
+          // An empty saved value means the operator deliberately started a fresh thread.
+          if (savedSessionId) setActiveSessionId(savedSessionId);
+          return;
+        }
+
+        // Migrate existing installs: pick the newest Hermes thread when no app preference exists.
+        const response = await fetch('/api/hermes/sessions');
+        if (!response.ok) return;
+
+        const data = await response.json();
+        const latestSessionId = data.sessions?.[0]?.id;
+        if (!cancelled && typeof latestSessionId === 'string' && latestSessionId) {
+          localStorage.setItem('hermes_last_session_id', latestSessionId);
+          setActiveSessionId(latestSessionId);
+        }
+      } catch {
+        // Keep the app usable when browser storage or the Hermes session service is unavailable.
+      }
+    };
+
+    void restoreLastSession();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const handleFinishBoot = useCallback((targetMode?: AppMode) => {
-    if (targetMode) setMode(targetMode);
+    if (targetMode) changeMode(targetMode);
     setBooting(false);
     if (typeof window !== 'undefined') {
       try {
         sessionStorage.setItem('hermes_boot_seen', 'true');
       } catch {}
     }
-  }, []);
+  }, [changeMode]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -75,7 +126,18 @@ export default function Home() {
 
   const handleSelectSession = (sessionId: string) => {
     setActiveSessionId(sessionId);
-    setMode('chat');
+    try {
+      localStorage.setItem('hermes_last_session_id', sessionId);
+    } catch {}
+    changeMode('chat');
+  };
+
+  const handleSessionChange = (sessionId: string | undefined) => {
+    setActiveSessionId(sessionId);
+    try {
+      // Persist the empty value too so a deliberate New Session isn't replaced by old history.
+      localStorage.setItem('hermes_last_session_id', sessionId || '');
+    } catch {}
   };
 
   const renderContent = () => {
@@ -83,20 +145,21 @@ export default function Home() {
       case 'hud':
         return (
           <HUD
-            setMode={setMode}
+            setMode={changeMode}
             onSelectSession={handleSelectSession}
           />
         );
       case 'chat':
         return (
           <ChatMode
-            setMode={setMode}
+            setMode={changeMode}
             initialSessionId={activeSessionId}
             onSelectSession={handleSelectSession}
+            onSessionChange={handleSessionChange}
           />
         );
       default:
-        return <HUD setMode={setMode} onSelectSession={handleSelectSession} />;
+        return <HUD setMode={changeMode} onSelectSession={handleSelectSession} />;
     }
   };
 

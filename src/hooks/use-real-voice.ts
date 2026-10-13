@@ -21,6 +21,7 @@ export interface UseRealVoiceOptions {
   autoSpeakResponse?: boolean;
   initialMode?: VoiceMode;
   wakeWord?: string;
+  continuousDictation?: boolean;
 }
 
 // Check if running inside Electron desktop container
@@ -65,22 +66,40 @@ export function parseWakeWord(rawText: string): { matched: boolean; commandAfter
     .replace(/\s+/g, ' ')
     .trim();
 
-  if (WAKE_WORD_REGEX.test(normalized)) {
-    const stripped = normalized
-      .replace(WAKE_WORD_REGEX, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-    return { matched: true, commandAfterWake: stripped };
-  }
-
   const words = normalized.split(' ');
-  const hasToken = words.some((w) => WAKE_WORD_TOKENS.has(w));
-  if (hasToken) {
-    const stripped = words.filter((w) => !WAKE_WORD_TOKENS.has(w)).join(' ').trim();
-    return { matched: true, commandAfterWake: stripped };
+  const wakeIndex = ['hey', 'hi', 'ok', 'hello'].includes(words[0]) ? 1 : 0;
+  const prefix = words.slice(0, wakeIndex + 1).join(' ');
+  if (WAKE_WORD_REGEX.test(prefix) || WAKE_WORD_TOKENS.has(words[wakeIndex])) {
+    return { matched: true, commandAfterWake: words.slice(wakeIndex + 1).join(' ').trim() };
   }
 
   return { matched: false, commandAfterWake: '' };
+}
+
+function splitSpeechText(text: string, maxLength = 2300): string[] {
+  const words = text.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+  const chunks: string[] = [];
+  let current = '';
+
+  for (const word of words) {
+    if (word.length > maxLength) {
+      if (current) chunks.push(current);
+      current = '';
+      for (let offset = 0; offset < word.length; offset += maxLength) {
+        chunks.push(word.slice(offset, offset + maxLength));
+      }
+      continue;
+    }
+    const next = current ? `${current} ${word}` : word;
+    if (next.length > maxLength) {
+      chunks.push(current);
+      current = word;
+    } else {
+      current = next;
+    }
+  }
+  if (current) chunks.push(current);
+  return chunks;
 }
 
 export function useRealVoice(options: UseRealVoiceOptions = {}) {
@@ -92,6 +111,7 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
     autoSpeakResponse = true,
     initialMode = 'auto',
     wakeWord = 'Hermes',
+    continuousDictation = false,
   } = options;
 
   const [mode, setModeState] = useState<VoiceMode>(() => {
@@ -148,11 +168,16 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
   const activeTranscriptRef = useRef('');
   const modeRef = useRef<VoiceMode>(mode);
   const statusRef = useRef<VoiceStatus>(status);
+  const continuousDictationRef = useRef(continuousDictation);
+  continuousDictationRef.current = continuousDictation;
   const isAwokenRef = useRef(false);
   const isProcessingRef = useRef(false);
   const hasSubmittedRef = useRef(false);
   const unmountedRef = useRef(false);
   const retryCountRef = useRef(0);
+  const voiceRequestIdRef = useRef(0);
+  const voiceRequestAbortRef = useRef<AbortController | null>(null);
+  const speechRunIdRef = useRef(0);
 
   const startMonitoringRef = useRef<() => void>(() => {});
   const startListeningRef = useRef<() => void>(() => {});
@@ -176,7 +201,7 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
       const hasSpeech = !!(
         (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
       );
-      setIsSupported(hasMedia || hasSpeech);
+      setIsSupported((hasMedia && typeof MediaRecorder !== 'undefined') || hasSpeech);
     }
   }, []);
 
@@ -228,6 +253,10 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
       };
 
       recorder.onstop = async () => {
+        if (vadClipTimeoutRef.current) {
+          clearTimeout(vadClipTimeoutRef.current);
+          vadClipTimeoutRef.current = null;
+        }
         isVadClipRecordingRef.current = false;
         const chunks = vadClipChunksRef.current;
         vadClipChunksRef.current = [];
@@ -265,6 +294,12 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
               // User only said "Hermes" or "Jarvis": immediately transition to listening mode to capture the command!
               startListeningRef.current();
             }
+          } else if (continuousDictationRef.current && clean.length > 1) {
+            // Keyless dictation does not require a wake word. The VAD clip is
+            // already bounded by a short silence before it reaches this point.
+            activeTranscriptRef.current = clean;
+            setTranscript(clean);
+            sendVoiceQueryRef.current(clean);
           }
         } catch (err) {
           console.warn('Ambient VAD wake-word check notice:', err);
@@ -276,6 +311,8 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
       vadClipRecorderRef.current = recorder;
       recorder.start(100);
       isVadClipRecordingRef.current = true;
+      if (vadClipTimeoutRef.current) clearTimeout(vadClipTimeoutRef.current);
+      vadClipTimeoutRef.current = setTimeout(() => stopVadClipRecordingRef.current(), 25000);
     } catch (err) {
       console.warn('Failed to start ambient VAD recorder:', err);
     }
@@ -335,6 +372,9 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
       if (AudioCtx) {
         const audioCtx = new AudioCtx();
         audioContextRef.current = audioCtx;
+        if (audioCtx.state === 'suspended') {
+          void audioCtx.resume().catch(() => {});
+        }
 
         const analyser = audioCtx.createAnalyser();
         analyser.fftSize = 128;
@@ -513,17 +553,21 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
         return;
       }
 
+      const runId = ++speechRunIdRef.current;
       if (synthWatchdogRef.current) clearTimeout(synthWatchdogRef.current);
       stopSarvamAudio();
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
       }
 
-      const cleanText = textToSpeak.replace(/[*_#`[\]()]/g, ' ').slice(0, 400);
+      const cleanText = textToSpeak.replace(/[*_#`[\]()]/g, ' ').replace(/\s+/g, ' ').trim();
+      const chunks = splitSpeechText(cleanText);
+      let chunkIndex = 0;
 
       let hasFinished = false;
+      const isCurrentRun = () => speechRunIdRef.current === runId && !unmountedRef.current;
       const finishSpeech = () => {
-        if (hasFinished) return;
+        if (hasFinished || !isCurrentRun()) return;
         hasFinished = true;
         soundFx.stopSpeechTelemetry();
         stopSarvamAudio();
@@ -549,49 +593,75 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
         }
       };
 
-      // 1. Attempt Sarvam Neural TTS (Bulbul)
-      synthesizeSarvamSpeech(cleanText)
-        .then(({ audioUrl }) => {
+      const playNextChunk = async () => {
+        if (!isCurrentRun() || hasFinished) return;
+        if (chunkIndex >= chunks.length) {
+          finishSpeech();
+          return;
+        }
+
+        const chunk = chunks[chunkIndex++];
+        let chunkFinished = false;
+        const finishChunk = () => {
+          if (chunkFinished || !isCurrentRun()) return;
+          chunkFinished = true;
+          if (synthWatchdogRef.current) {
+            clearTimeout(synthWatchdogRef.current);
+            synthWatchdogRef.current = null;
+          }
+          void playNextChunk();
+        };
+
+        try {
+          const { audioUrl } = await synthesizeSarvamSpeech(chunk);
+          if (!isCurrentRun()) return;
           setStatus('speaking');
           soundFx.startSpeechTelemetry();
-          playSarvamAudio(audioUrl, finishSpeech);
-        })
-        .catch(() => {
-          // 2. Fallback to Web Speech Synthesis API
+          playSarvamAudio(audioUrl, finishChunk);
+          synthWatchdogRef.current = setTimeout(() => {
+            stopSarvamAudio();
+            finishChunk();
+          }, Math.max(12000, chunk.length * 180 + 8000));
+        } catch {
+          if (!isCurrentRun()) return;
           if (!('speechSynthesis' in window)) {
-            finishSpeech();
+            finishChunk();
             return;
           }
 
-          const utterance = new SpeechSynthesisUtterance(cleanText);
+          const utterance = new SpeechSynthesisUtterance(chunk);
           (window as any).__hermesActiveUtterance = utterance;
-
           const voices = window.speechSynthesis.getVoices();
           const preferred = voices.find(
-            (v) =>
-              v.lang.startsWith('en') &&
-              (v.name.includes('Natural') ||
-                v.name.includes('Google') ||
-                v.name.includes('Daniel') ||
-                v.name.includes('Samantha') ||
-                v.name.includes('Guy'))
+            (voice) =>
+              voice.lang.startsWith('en') &&
+              (voice.name.includes('Natural') || voice.name.includes('Google') ||
+                voice.name.includes('Daniel') || voice.name.includes('Samantha') || voice.name.includes('Guy'))
           );
-          if (preferred) {
-            utterance.voice = preferred;
-          }
-
+          if (preferred) utterance.voice = preferred;
           utterance.rate = 1.05;
           utterance.pitch = 0.95;
-          utterance.onend = finishSpeech;
-          utterance.onerror = finishSpeech;
-
-          const estimatedDurationMs = Math.max(3500, cleanText.length * 90);
-          synthWatchdogRef.current = setTimeout(finishSpeech, estimatedDurationMs);
-
+          utterance.onend = finishChunk;
+          utterance.onerror = finishChunk;
+          synthWatchdogRef.current = setTimeout(
+            finishChunk,
+            Math.max(3500, chunk.length * 100 + 5000)
+          );
           setStatus('speaking');
           soundFx.startSpeechTelemetry();
-          window.speechSynthesis.speak(utterance);
-        });
+          try {
+            window.speechSynthesis.speak(utterance);
+          } catch {
+            finishChunk();
+          }
+        }
+      };
+
+      if (!chunks.length) {
+        finishSpeech();
+      } else {
+        void playNextChunk();
+      }
     },
     []
   );
@@ -599,8 +669,8 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
   // Send voice query to Hermes in WSL
   const sendVoiceQuery = useCallback(
     async (queryText: string) => {
-      const { commandAfterWake } = parseWakeWord(queryText);
-      const cleanQuery = (commandAfterWake || queryText.replace(WAKE_WORD_REGEX, '')).trim();
+      const parsedWakeWord = parseWakeWord(queryText);
+      const cleanQuery = (parsedWakeWord.matched ? parsedWakeWord.commandAfterWake : queryText).trim();
       if (!cleanQuery) {
         isProcessingRef.current = false;
         hasSubmittedRef.current = false;
@@ -615,15 +685,32 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
 
       // If consumer only wants recognized transcript directly (e.g. Chat Mode)
       if (skipApiQuery && onTranscriptReady) {
+        if (isProcessingRef.current) return;
+        const requestId = ++voiceRequestIdRef.current;
+        isProcessingRef.current = true;
         soundFx.playClick(880);
+        await safelyDestroyRecognition();
         stopAudioAnalysis();
+        if (requestId !== voiceRequestIdRef.current || unmountedRef.current) return;
         onTranscriptReady(cleanQuery);
         isProcessingRef.current = false;
         hasSubmittedRef.current = false;
         setStatus('idle');
+        if (modeRef.current === 'auto') {
+          setTimeout(() => {
+            if (modeRef.current === 'auto' && !unmountedRef.current && requestId === voiceRequestIdRef.current) {
+              startMonitoringRef.current();
+            }
+          }, 500);
+        }
         return;
       }
 
+      if (isProcessingRef.current) return;
+      const requestId = ++voiceRequestIdRef.current;
+      const requestAbort = new AbortController();
+      voiceRequestAbortRef.current?.abort();
+      voiceRequestAbortRef.current = requestAbort;
       isProcessingRef.current = true;
       setStatus('thinking');
       soundFx.playClick(880);
@@ -641,11 +728,14 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
       // Cleanly shutdown recognition and audio analysis before inference
       await safelyDestroyRecognition();
       stopAudioAnalysis();
+      if (requestId !== voiceRequestIdRef.current || unmountedRef.current) return;
 
       // Thinking Watchdog: Never let inference stay hung forever
       if (thinkingWatchdogRef.current) clearTimeout(thinkingWatchdogRef.current);
       thinkingWatchdogRef.current = setTimeout(() => {
-        if (statusRef.current === 'thinking') {
+        if (requestId === voiceRequestIdRef.current && statusRef.current === 'thinking') {
+          requestAbort.abort();
+          voiceRequestAbortRef.current = null;
           isProcessingRef.current = false;
           hasSubmittedRef.current = false;
           setError('Inference timed out in WSL. Resetting voice state.');
@@ -661,7 +751,10 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
             message: cleanQuery,
             sessionId,
           }),
+          signal: requestAbort.signal,
         });
+
+        if (requestId !== voiceRequestIdRef.current || unmountedRef.current) return;
 
         if (thinkingWatchdogRef.current) {
           clearTimeout(thinkingWatchdogRef.current);
@@ -671,6 +764,8 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
         if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
 
         const data = await res.json();
+        if (requestId !== voiceRequestIdRef.current || unmountedRef.current) return;
+        voiceRequestAbortRef.current = null;
         const aiAnswer = data.content || 'Hermes completed the command.';
 
         // Parse any ```godseye telemetry block from assistant and fly to target
@@ -709,7 +804,9 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
           }
         }
       } catch (err: any) {
+        if (requestId !== voiceRequestIdRef.current || err?.name === 'AbortError' || unmountedRef.current) return;
         console.error('Hermes Voice Query Error:', err);
+        voiceRequestAbortRef.current = null;
         if (thinkingWatchdogRef.current) {
           clearTimeout(thinkingWatchdogRef.current);
           thinkingWatchdogRef.current = null;
@@ -844,6 +941,19 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
 
           // 1. If currently in standby monitoring, check for wake-word "Hermes" or "Jarvis"
           if (!isAwokenRef.current) {
+            if (continuousDictation) {
+              activeTranscriptRef.current = rawSpoken;
+              setTranscript(rawSpoken);
+              setInterimTranscript(interimStr);
+              if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
+              silenceTimeoutRef.current = setTimeout(() => {
+                if (activeTranscriptRef.current && !hasSubmittedRef.current) {
+                  hasSubmittedRef.current = true;
+                  sendVoiceQueryRef.current(activeTranscriptRef.current);
+                }
+              }, 1200);
+              return;
+            }
             const { matched, commandAfterWake } = parseWakeWord(rawSpoken);
             if (matched) {
               isAwokenRef.current = true;
@@ -929,7 +1039,7 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
             statusRef.current !== 'thinking' &&
             statusRef.current !== 'speaking'
           ) {
-            if (activeTranscriptRef.current && !hasSubmittedRef.current && isAwokenRef.current) {
+            if (activeTranscriptRef.current && !hasSubmittedRef.current && (isAwokenRef.current || continuousDictation)) {
               hasSubmittedRef.current = true;
               sendVoiceQuery(activeTranscriptRef.current);
               return;
@@ -958,7 +1068,7 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
 
     // In Electron or browser without Web Speech: ambient VAD loop handles wake-word automatically
     setStatus('monitoring');
-  }, [sendVoiceQuery, startAudioAnalysis, safelyDestroyRecognition]);
+  }, [sendVoiceQuery, startAudioAnalysis, safelyDestroyRecognition, continuousDictation]);
 
   startMonitoringRef.current = startMonitoring;
 
@@ -1017,6 +1127,14 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
 
         recorder.onstop = async () => {
           isRecordingAudioRef.current = false;
+          if (listeningTimeoutRef.current) {
+            clearTimeout(listeningTimeoutRef.current);
+            listeningTimeoutRef.current = null;
+          }
+          if (vadClipTimeoutRef.current) {
+            clearTimeout(vadClipTimeoutRef.current);
+            vadClipTimeoutRef.current = null;
+          }
           if (hasSubmittedRef.current) return;
 
           const chunks = audioChunksRef.current;
@@ -1109,13 +1227,37 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
         mediaRecorderRef.current = recorder;
         recorder.start(200); // chunk every 200ms
         isRecordingAudioRef.current = true;
+        if (vadClipTimeoutRef.current) clearTimeout(vadClipTimeoutRef.current);
+        vadClipTimeoutRef.current = setTimeout(() => {
+          if (recorder.state === 'recording') recorder.stop();
+        }, 25000);
       }
     } catch (recErr: any) {
       console.warn('MediaRecorder init notice:', recErr);
+      stopAudioAnalysis();
+      setStatus('idle');
+      setError(`Microphone recorder unavailable: ${recErr?.message || 'Unable to record audio'}`);
+    }
+
+    if (typeof MediaRecorder === 'undefined') {
+      const hasNativeRecognition = !isElectronEnv() && !!(
+        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+      );
+      if (!hasNativeRecognition) {
+        stopAudioAnalysis();
+        setStatus('idle');
+        setError('This browser cannot record microphone audio. Try a current version of Edge or Chrome.');
+        return;
+      }
     }
 
     // Set listening inactivity timeout watchdog (reverts to auto monitoring if user remains silent)
     if (listeningTimeoutRef.current) clearTimeout(listeningTimeoutRef.current);
+
+    voiceRequestIdRef.current += 1;
+    voiceRequestAbortRef.current?.abort();
+    voiceRequestAbortRef.current = null;
+    speechRunIdRef.current += 1;
     listeningTimeoutRef.current = setTimeout(() => {
       if (statusRef.current === 'listening' && !hasSpokenRef.current && !hasSubmittedRef.current) {
         if (modeRef.current === 'auto') {

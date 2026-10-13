@@ -7,6 +7,31 @@ import type { WisprUser, WisprKeybind, WisprDictation, WisprStatusResponse } fro
 export type WisprExecutionMode = 'manual_approve' | 'auto_execute';
 export type WisprActivationMode = 'key_ptt' | 'hands_free';
 
+const WISPR_SETTINGS_EVENT = 'hermes:wispr-settings-changed';
+const WISPR_PROCESSED_EVENT = 'hermes:wispr-dictation-processed';
+const handledDictationIds = new Set<string>();
+const approvedDictationIds = new Set<string>();
+
+function rememberHandledDictation(id: string): boolean {
+  if (!id || handledDictationIds.has(id)) return false;
+  handledDictationIds.add(id);
+  if (handledDictationIds.size > 200) {
+    const oldest = handledDictationIds.values().next().value;
+    if (oldest) handledDictationIds.delete(oldest);
+  }
+  return true;
+}
+
+function claimApproval(id: string): boolean {
+  if (!id || approvedDictationIds.has(id)) return false;
+  approvedDictationIds.add(id);
+  if (approvedDictationIds.size > 200) {
+    const oldest = approvedDictationIds.values().next().value;
+    if (oldest) approvedDictationIds.delete(oldest);
+  }
+  return true;
+}
+
 export interface UseWisprFlowOptions {
   pollingIntervalMs?: number;
   autoSubmitDefault?: boolean;
@@ -39,14 +64,17 @@ export function useWisprFlow(options: UseWisprFlowOptions = {}) {
   const [lastDictation, setLastDictation] = useState<WisprDictation | null>(null);
   const [totalDictationsCount, setTotalDictationsCount] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
+  const refreshInFlightRef = useRef<Promise<void> | null>(null);
 
   // Execution Mode: 'manual_approve' vs 'auto_execute'
   const [executionMode, setExecutionModeState] = useState<WisprExecutionMode>(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('hermes_wispr_execution_mode');
-      if (saved === 'auto_execute' || saved === 'manual_approve') return saved;
-      const legacyAuto = localStorage.getItem('hermes_wispr_auto_submit');
-      if (legacyAuto !== null) return legacyAuto === 'true' ? 'auto_execute' : 'manual_approve';
+      try {
+        const saved = localStorage.getItem('hermes_wispr_execution_mode');
+        if (saved === 'auto_execute' || saved === 'manual_approve') return saved;
+        const legacyAuto = localStorage.getItem('hermes_wispr_auto_submit');
+        if (legacyAuto !== null) return legacyAuto === 'true' ? 'auto_execute' : 'manual_approve';
+      } catch {}
     }
     return autoSubmitDefault ? 'auto_execute' : defaultExecutionMode;
   });
@@ -54,8 +82,10 @@ export function useWisprFlow(options: UseWisprFlowOptions = {}) {
   // Activation Mode: 'key_ptt' (Caps Lock) vs 'hands_free' (Keyless continuous ambient)
   const [activationMode, setActivationModeState] = useState<WisprActivationMode>(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('hermes_wispr_activation_mode');
-      if (saved === 'hands_free' || saved === 'key_ptt') return saved;
+      try {
+        const saved = localStorage.getItem('hermes_wispr_activation_mode');
+        if (saved === 'hands_free' || saved === 'key_ptt') return saved;
+      } catch {}
     }
     return defaultActivationMode;
   });
@@ -67,6 +97,7 @@ export function useWisprFlow(options: UseWisprFlowOptions = {}) {
   const autoLaunchRef = useRef(autoLaunch);
   const isMountedRef = useRef(true);
   const lastKnownIdRef = useRef<string | null>(null);
+  const seenDictationIdsRef = useRef<Set<string> | null>(null);
   const onNewDictationRef = useRef(onNewDictation);
   const onAutoSubmitRef = useRef(onAutoSubmit);
   const onPendingApprovalRef = useRef(onPendingApproval);
@@ -79,6 +110,15 @@ export function useWisprFlow(options: UseWisprFlowOptions = {}) {
       isMountedRef.current = false;
     };
   }, []);
+
+  useEffect(() => {
+    const handleProcessed = (event: Event) => {
+      const id = (event as CustomEvent<{ id?: string }>).detail?.id;
+      if (id && pendingDictation?.id === id) setPendingDictation(null);
+    };
+    window.addEventListener(WISPR_PROCESSED_EVENT, handleProcessed);
+    return () => window.removeEventListener(WISPR_PROCESSED_EVENT, handleProcessed);
+  }, [pendingDictation]);
 
   useEffect(() => {
     autoLaunchRef.current = autoLaunch;
@@ -104,12 +144,45 @@ export function useWisprFlow(options: UseWisprFlowOptions = {}) {
     activationModeRef.current = activationMode;
   }, [activationMode]);
 
+  // Multiple panels use this hook. Keep their policy controls in sync within
+  // this tab, and also honor changes made in another tab.
+  useEffect(() => {
+    const applySettings = (detail?: Partial<{ executionMode: WisprExecutionMode; activationMode: WisprActivationMode }>) => {
+      if (detail?.executionMode === 'auto_execute' || detail?.executionMode === 'manual_approve') {
+        executionModeRef.current = detail.executionMode;
+        setExecutionModeState(detail.executionMode);
+      }
+      if (detail?.activationMode === 'hands_free' || detail?.activationMode === 'key_ptt') {
+        activationModeRef.current = detail.activationMode;
+        setActivationModeState(detail.activationMode);
+      }
+    };
+    const handleCustom = (event: Event) => applySettings((event as CustomEvent).detail);
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === 'hermes_wispr_execution_mode') {
+        applySettings({ executionMode: event.newValue as WisprExecutionMode });
+      }
+      if (event.key === 'hermes_wispr_activation_mode') {
+        applySettings({ activationMode: event.newValue as WisprActivationMode });
+      }
+    };
+    window.addEventListener(WISPR_SETTINGS_EVENT, handleCustom);
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      window.removeEventListener(WISPR_SETTINGS_EVENT, handleCustom);
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, []);
+
   const setExecutionMode = useCallback((mode: WisprExecutionMode) => {
     setExecutionModeState(mode);
     executionModeRef.current = mode;
     if (typeof window !== 'undefined') {
-      localStorage.setItem('hermes_wispr_execution_mode', mode);
-      localStorage.setItem('hermes_wispr_auto_submit', String(mode === 'auto_execute'));
+      try {
+        localStorage.setItem('hermes_wispr_execution_mode', mode);
+        localStorage.setItem('hermes_wispr_auto_submit', String(mode === 'auto_execute'));
+      } catch {}
+      window.dispatchEvent(new CustomEvent(WISPR_SETTINGS_EVENT, { detail: { executionMode: mode } }));
     }
     soundFx.playClick(mode === 'auto_execute' ? 1200 : 900);
   }, []);
@@ -118,7 +191,8 @@ export function useWisprFlow(options: UseWisprFlowOptions = {}) {
     setActivationModeState(mode);
     activationModeRef.current = mode;
     if (typeof window !== 'undefined') {
-      localStorage.setItem('hermes_wispr_activation_mode', mode);
+      try { localStorage.setItem('hermes_wispr_activation_mode', mode); } catch {}
+      window.dispatchEvent(new CustomEvent(WISPR_SETTINGS_EVENT, { detail: { activationMode: mode } }));
     }
     soundFx.playClick(mode === 'hands_free' ? 1300 : 900);
   }, []);
@@ -129,8 +203,16 @@ export function useWisprFlow(options: UseWisprFlowOptions = {}) {
       : (target?.formattedText || target?.pastedText || pendingDictation?.formattedText || pendingDictation?.pastedText || '');
     const clean = textToApprove.trim();
     if (clean) {
+      const dictationId = typeof target === 'object' ? target?.id : pendingDictation?.id;
+      if (dictationId && !claimApproval(dictationId)) {
+        setPendingDictation(null);
+        return clean;
+      }
       soundFx.playChirp();
       setPendingDictation(null);
+      if (dictationId && typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent(WISPR_PROCESSED_EVENT, { detail: { id: dictationId } }));
+      }
       if (onAutoSubmitRef.current) {
         onAutoSubmitRef.current(clean);
       }
@@ -141,12 +223,20 @@ export function useWisprFlow(options: UseWisprFlowOptions = {}) {
   const discardDictation = useCallback(() => {
     soundFx.playClick(700);
     setPendingDictation(null);
-  }, []);
+    if (pendingDictation?.id && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent(WISPR_PROCESSED_EVENT, { detail: { id: pendingDictation.id } }));
+    }
+  }, [pendingDictation]);
 
   const refresh = useCallback(async () => {
-    try {
+    if (refreshInFlightRef.current) return refreshInFlightRef.current;
+    const refreshTask = (async () => {
+      try {
       if (isMountedRef.current) setIsSyncing(true);
-      const res = await fetch('/api/system/wispr-flow', { cache: 'no-store' });
+      const res = await fetch('/api/system/wispr-flow', {
+        cache: 'no-store',
+        signal: AbortSignal.timeout(8000),
+      });
       if (!res.ok || !isMountedRef.current) return;
 
       const data: WisprStatusResponse = await res.json();
@@ -172,36 +262,49 @@ export function useWisprFlow(options: UseWisprFlowOptions = {}) {
 
       const latest = data.lastDictation;
       if (latest) {
-        if (lastKnownIdRef.current && lastKnownIdRef.current !== latest.id) {
-          // New dictation arrived!
-          soundFx.playWakeWordChime();
-          if (onNewDictationRef.current) {
-            onNewDictationRef.current(latest);
+        const recent = data.recentDictations || [];
+        if (!seenDictationIdsRef.current) {
+          seenDictationIdsRef.current = new Set(recent.map((item) => item.id).filter(Boolean));
+        }
+        const seenIds = seenDictationIdsRef.current!;
+        const newDictations = recent.filter((item) => item.id && !seenIds.has(item.id)).reverse();
+
+        for (const dictation of newDictations) {
+          seenIds.add(dictation.id);
+          const text = (dictation.formattedText || dictation.pastedText || '').trim();
+          const hasCallback = !!onNewDictationRef.current ||
+            (executionModeRef.current === 'auto_execute' ? !!onAutoSubmitRef.current : !!onPendingApprovalRef.current);
+          const shouldDeliver = hasCallback && rememberHandledDictation(dictation.id);
+
+          if (text && executionModeRef.current === 'manual_approve') {
+            setPendingDictation(dictation);
           }
-          const text = (latest.formattedText || latest.pastedText || '').trim();
-          if (text) {
-            if (executionModeRef.current === 'auto_execute') {
-              if (onAutoSubmitRef.current) {
-                onAutoSubmitRef.current(text);
-              }
-            } else {
-              setPendingDictation(latest);
-              if (onPendingApprovalRef.current) {
-                onPendingApprovalRef.current(latest);
-              }
-            }
+          if (!shouldDeliver) continue;
+
+          soundFx.playWakeWordChime();
+          onNewDictationRef.current?.(dictation);
+          if (!text) continue;
+          if (executionModeRef.current === 'auto_execute') {
+            onAutoSubmitRef.current?.(text);
+          } else {
+            onPendingApprovalRef.current?.(dictation);
           }
         }
-        lastKnownIdRef.current = latest.id;
+
+        lastKnownIdRef.current = latest.id || lastKnownIdRef.current;
         setLastDictation(latest);
       }
-    } catch (err) {
+      } catch (err) {
       console.warn('Wispr Flow sync notice:', err);
-    } finally {
+      } finally {
       if (isMountedRef.current) {
         setIsSyncing(false);
       }
+      refreshInFlightRef.current = null;
     }
+    })();
+    refreshInFlightRef.current = refreshTask;
+    return refreshTask;
   }, []);
 
   const launchApp = useCallback(async () => {
@@ -213,7 +316,9 @@ export function useWisprFlow(options: UseWisprFlowOptions = {}) {
         body: JSON.stringify({ action: 'launch' }),
       });
       const data = await res.json();
-      setTimeout(refresh, 1000);
+      if (!res.ok) throw new Error(data.error || `Wispr Flow launch failed (${res.status})`);
+      autoLaunchAttemptedRef.current = true;
+      setTimeout(refresh, 1200);
       return data;
     } catch (err) {
       console.warn('Wispr launch notice:', err);
@@ -229,7 +334,8 @@ export function useWisprFlow(options: UseWisprFlowOptions = {}) {
         body: JSON.stringify({ action: 'ptt' }),
       });
       const data = await res.json();
-      setTimeout(refresh, 1500);
+      if (!res.ok || data.success === false) throw new Error(data.message || data.error || `Wispr Flow shortcut failed (${res.status})`);
+      setTimeout(refresh, 1200);
       return data;
     } catch (err) {
       console.warn('Wispr trigger notice:', err);

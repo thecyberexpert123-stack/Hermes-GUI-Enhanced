@@ -18,6 +18,10 @@ export type FullSystemMetrics = SystemPerformanceInput & {
   openedApps: string[];
   boostStatus: BoostStatus;
   isRealTelemetry: boolean;
+  gpuAvailable?: boolean;
+  batteryAvailable?: boolean;
+  cpuTemperatureC?: number;
+  cpuFrequencyGHz?: number;
   uptime?: string;
   loadAverage?: string;
   ramUsedMB?: number;
@@ -29,44 +33,30 @@ export type FullSystemMetrics = SystemPerformanceInput & {
 
 const useSystemMetrics = () => {
   const [metrics, setMetrics] = useState<FullSystemMetrics>({
-    cpuUsage: 24,
-    gpuUsage: 15,
-    ramUsage: 28,
-    diskUsage: 22,
-    networkInMbps: 18.5,
-    networkOutMbps: 4.2,
-    batteryLevel: 98,
-    batteryCharging: true,
+    cpuUsage: -1,
+    gpuUsage: -1,
+    ramUsage: -1,
+    diskUsage: 0,
+    networkInMbps: 0,
+    networkOutMbps: 0,
+    batteryLevel: -1,
+    batteryCharging: false,
     specs: {
-      cpu: 'AMD Ryzen 5 7520U (4C/8T)',
-      gpu: 'AMD Radeon Graphics',
-      ram: '3.55 GB WSL / 16 GB Host',
-      os: 'Kali Linux // WSL2',
+      cpu: 'Detecting CPU',
+      gpu: 'GPU telemetry unavailable',
+      ram: 'Detecting memory',
+      os: 'Detecting Linux environment',
     },
-    openedApps: ['hermes-gateway (PID 358)', 'kali-security', 'next.js studio', 'wsl-interop'],
+    openedApps: [],
     boostStatus: 'idle',
-    isRealTelemetry: true,
-    uptime: '2h 15m',
-    loadAverage: '0.42, 0.38, 0.31',
-    ramUsedMB: 980,
-    ramTotalMB: 3549,
-    topProcesses: [
-      { pid: '358', name: 'hermes-gateway', cpu: '1.2%', mem: '15.9%' },
-      { pid: '1', name: 'systemd', cpu: '0.0%', mem: '0.3%' },
-      { pid: '1024', name: 'node (Next.js)', cpu: '2.5%', mem: '4.8%' },
-    ],
+    isRealTelemetry: false,
+    uptime: '—',
+    loadAverage: '—',
+    topProcesses: [],
   });
 
-  const [analysis, setAnalysis] = useState<SystemPerformanceOutput | null>({
-    hasCriticalIssues: false,
-    overallSummary: 'WSL sub-systems optimal.',
-    issues: [],
-    healthScore: 98,
-    statusSummary: 'WSL sub-systems optimal.',
-    warnings: [],
-    recommendations: ['Gateway active on Telegram channel. All 61 skills initialized.'],
-  });
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysis] = useState<SystemPerformanceOutput | null>(null);
+  const [isAnalyzing] = useState(false);
 
   const boostTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const metricsRef = useRef(metrics);
@@ -86,19 +76,6 @@ const useSystemMetrics = () => {
       console.warn('Real system boost call failed:', err);
     });
 
-    const originalValues = {
-      cpuUsage: metrics.cpuUsage,
-      gpuUsage: metrics.gpuUsage,
-      ramUsage: metrics.ramUsage,
-    };
-
-    setMetrics((prev) => ({
-      ...prev,
-      cpuUsage: Math.min(100, originalValues.cpuUsage + 45),
-      gpuUsage: Math.min(100, originalValues.gpuUsage + 50),
-      ramUsage: Math.min(100, originalValues.ramUsage + 25),
-    }));
-
     if (boostTimeoutRef.current) clearTimeout(boostTimeoutRef.current);
     boostTimeoutRef.current = setTimeout(() => {
       setMetrics((prev) => ({ ...prev, boostStatus: 'cooling' }));
@@ -106,13 +83,10 @@ const useSystemMetrics = () => {
         setMetrics((prev) => ({
           ...prev,
           boostStatus: 'idle',
-          cpuUsage: originalValues.cpuUsage,
-          gpuUsage: originalValues.gpuUsage,
-          ramUsage: originalValues.ramUsage,
         }));
       }, 2500);
     }, 1800);
-  }, [metrics.boostStatus, metrics.cpuUsage, metrics.gpuUsage, metrics.ramUsage]);
+  }, [metrics.boostStatus]);
 
   // Fetch real system metrics from Next.js API
   useEffect(() => {
@@ -124,19 +98,44 @@ const useSystemMetrics = () => {
       try {
         const res = await fetch('/api/system/metrics');
         if (!res.ok) throw new Error('Failed to fetch');
-        const data = await res.json();
+        const data = await res.json() as {
+          cpuUsage?: number;
+          gpuUsage?: number;
+          gpuAvailable?: boolean;
+          ramUsage?: number;
+          diskUsage?: number;
+          ramUsedMB?: number;
+          ramTotalMB?: number;
+          diskTotalGB?: number;
+          diskUsedGB?: number;
+          batteryAvailable?: boolean;
+          cpuTemperatureC?: number;
+          cpuFrequencyGHz?: number;
+          uptimeFormatted?: string;
+          loadAverage?: string;
+          cpuModel?: string;
+          gpuModel?: string;
+          distro?: string;
+          topProcesses?: Array<{ pid: string; name: string; cpu: string; mem: string }>;
+          networkInMbps?: number;
+          networkOutMbps?: number;
+        };
 
         if (isMounted) {
           setMetrics((prev) => ({
             ...prev,
             cpuUsage: data.cpuUsage ?? prev.cpuUsage,
             gpuUsage: data.gpuUsage ?? prev.gpuUsage,
+            gpuAvailable: data.gpuAvailable ?? prev.gpuAvailable,
             ramUsage: data.ramUsage ?? prev.ramUsage,
             diskUsage: data.diskUsage ?? prev.diskUsage,
             ramUsedMB: data.ramUsedMB,
             ramTotalMB: data.ramTotalMB,
             diskTotalGB: data.diskTotalGB,
             diskUsedGB: data.diskUsedGB,
+            batteryAvailable: data.batteryAvailable ?? prev.batteryAvailable,
+            cpuTemperatureC: data.cpuTemperatureC,
+            cpuFrequencyGHz: data.cpuFrequencyGHz,
             uptime: data.uptimeFormatted,
             loadAverage: data.loadAverage,
             specs: {
@@ -146,21 +145,13 @@ const useSystemMetrics = () => {
               os: data.distro || 'Kali Linux (WSL2)',
             },
             topProcesses: data.topProcesses || prev.topProcesses,
-            openedApps: (data.topProcesses || []).map(
-              (p: any) => `${p.name} (PID ${p.pid})`
-            ),
+            openedApps: (data.topProcesses || []).map((p) => `${p.name} (PID ${p.pid})`),
+            isRealTelemetry: true,
           }));
         }
       } catch {
-        // Fallback smooth oscillation if API isn't responding
-        if (isMounted && metricsRef.current.boostStatus === 'idle') {
-          const t = Date.now() / 3000;
-          setMetrics((prev) => ({
-            ...prev,
-            cpuUsage: Math.min(100, Math.max(10, 25 + 15 * Math.sin(t))),
-            gpuUsage: Math.min(100, Math.max(5, 18 + 10 * Math.cos(t / 1.5))),
-          }));
-        }
+        // Keep the last observed values. Synthetic oscillations look live but
+        // are not system telemetry.
       }
     };
 

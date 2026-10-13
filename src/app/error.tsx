@@ -23,8 +23,7 @@ export default function Error({
   const handleReboot = () => {
     try {
       soundFx.playClick(1000);
-      sessionStorage.clear();
-      localStorage.removeItem('hermes_voice_mode');
+      sessionStorage.removeItem('hermes_boot_seen');
     } catch {}
     reset();
   };
@@ -32,7 +31,7 @@ export default function Error({
   const handleForceReload = () => {
     try {
       soundFx.playClick(1200);
-      sessionStorage.clear();
+      sessionStorage.removeItem('hermes_boot_seen');
     } catch {}
     window.location.href = '/?skipBoot=1';
   };

@@ -14,7 +14,9 @@ interface MetricGaugeProps {
 }
 
 const MetricGauge = ({ name, value, color, icon, compact = false }: MetricGaugeProps) => {
-  const data = [{ name, value: value, fill: color }];
+  const available = Number.isFinite(value) && value >= 0;
+  const displayValue = available ? Math.min(100, value) : 0;
+  const data = [{ name, value: displayValue, fill: color }];
 
   const wrapperClass = compact ? "w-full" : "w-64";
   const containerSize = compact ? "h-[70px] w-[70px]" : "h-32 w-32";
@@ -46,8 +48,8 @@ const MetricGauge = ({ name, value, color, icon, compact = false }: MetricGaugeP
           </ResponsiveContainer>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <span className={cn("font-bold text-foreground", valueSize)}>
-              {value.toFixed(0)}
-              <span className={cn("font-normal text-primary/80", compact ? 'text-[10px]' : 'text-base')}>%</span>
+              {available ? value.toFixed(0) : '—'}
+              {available && <span className={cn("font-normal text-primary/80", compact ? 'text-[10px]' : 'text-base')}>%</span>}
             </span>
           </div>
         </div>

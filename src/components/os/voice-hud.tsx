@@ -121,6 +121,7 @@ const VoiceHUD = ({
       }
     },
   });
+  const wisprPttLabel = wispr.keybinds.find((keybind) => keybind.action.toLowerCase() === 'ptt')?.keys || 'shortcut not detected';
 
   const [micPeaks, setMicPeaks] = useState<number[]>(() => new Array(24).fill(6));
   const micPeaksRef = useRef<number[]>(new Array(24).fill(6));
@@ -860,7 +861,7 @@ const VoiceHUD = ({
             </span>
           ) : (
             <span className="text-muted-foreground text-[10px] truncate">
-              {wispr.activationMode === 'hands_free' ? 'Keyless Hands-Free Active' : 'Caps Lock PTT Ready'}
+              {wispr.activationMode === 'hands_free' ? 'Keyless Hands-Free Active' : `${wisprPttLabel} PTT Ready`}
             </span>
           )}
         </div>
@@ -905,9 +906,9 @@ const VoiceHUD = ({
                 ? "bg-accent/25 border-accent text-accent"
                 : "bg-muted/20 border-muted text-muted-foreground hover:text-foreground"
             )}
-            title="Toggle between Keyless Hands-Free and Caps Lock PTT"
+            title={`Toggle between Keyless Hands-Free and ${wisprPttLabel} PTT`}
           >
-            {wispr.activationMode === 'hands_free' ? '🎙️ KEYLESS' : '⌨️ CAPS LOCK'}
+            {wispr.activationMode === 'hands_free' ? '🎙️ KEYLESS' : `⌨️ ${wisprPttLabel.toUpperCase()}`}
           </button>
 
           <button

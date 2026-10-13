@@ -28,6 +28,10 @@ interface StartupAnimationProps {
 
 interface RealBootTelemetry {
   cpuUsage: number;
+  cpuModel: string;
+  gpuModel: string;
+  distro: string;
+  kernel: string;
   ramUsage: number;
   ramUsedMB: number;
   ramTotalMB: number;
@@ -45,15 +49,19 @@ export default function StartupAnimation({ onComplete }: StartupAnimationProps) 
   const [stageBurst, setStageBurst] = useState(false);
   const [isVoiceWelcomeActive, setIsVoiceWelcomeActive] = useState(false);
   const [telemetry, setTelemetry] = useState<RealBootTelemetry>({
-    cpuUsage: 35,
-    ramUsage: 42,
-    ramUsedMB: 1488,
-    ramTotalMB: 3549,
-    gatewayState: 'running',
-    gatewayPid: '358',
-    skillsCount: 76,
-    sessionsCount: 35,
-    model: 'nvidia/nemotron-3-ultra-550b-a55b',
+    cpuUsage: -1,
+    cpuModel: 'CPU telemetry unavailable',
+    gpuModel: 'GPU telemetry unavailable',
+    distro: 'Linux environment unavailable',
+    kernel: 'kernel unavailable',
+    ramUsage: -1,
+    ramUsedMB: 0,
+    ramTotalMB: 0,
+    gatewayState: 'unknown',
+    gatewayPid: 'not reported',
+    skillsCount: 0,
+    sessionsCount: 0,
+    model: 'unconfigured',
   });
 
   const finishedRef = useRef(false);
@@ -76,16 +84,20 @@ export default function StartupAnimation({ onComplete }: StartupAnimationProps) 
           const autoData = await autoRes.value.json();
           const specs = autoData.diagnostics?.systemSpecs;
           if (specs) {
-            newMetrics.gatewayPid = specs.gatewayPid || '336';
-            newMetrics.ramTotalMB = specs.ramTotalMB || 3549;
-            newMetrics.ramUsedMB = specs.ramUsedMB || 1950;
+            if (specs.gatewayPid) newMetrics.gatewayPid = String(specs.gatewayPid);
+            if (typeof specs.ramTotalMB === 'number') newMetrics.ramTotalMB = specs.ramTotalMB;
+            if (typeof specs.ramUsedMB === 'number') newMetrics.ramUsedMB = specs.ramUsedMB;
           }
         }
 
         if (metricsRes.status === 'fulfilled' && metricsRes.value.ok) {
           const mData = await metricsRes.value.json();
-          newMetrics.cpuUsage = mData.cpuUsage ?? 18;
-          newMetrics.ramUsage = mData.ramUsage ?? 45;
+          newMetrics.cpuUsage = mData.cpuUsage ?? -1;
+          newMetrics.cpuModel = mData.cpuModel ?? 'CPU telemetry unavailable';
+          newMetrics.gpuModel = mData.gpuModel ?? 'GPU telemetry unavailable';
+          newMetrics.distro = mData.distro ?? 'Linux environment unavailable';
+          newMetrics.kernel = mData.kernel ?? 'kernel unavailable';
+          newMetrics.ramUsage = mData.ramUsage ?? -1;
           if (mData.ramUsedMB) newMetrics.ramUsedMB = mData.ramUsedMB;
           if (mData.ramTotalMB) newMetrics.ramTotalMB = mData.ramTotalMB;
         }
@@ -94,9 +106,9 @@ export default function StartupAnimation({ onComplete }: StartupAnimationProps) 
           const sData = await statusRes.value.json();
           newMetrics.gatewayState = sData.gatewayState || 'running';
           if (sData.gatewayPid) newMetrics.gatewayPid = String(sData.gatewayPid);
-          newMetrics.skillsCount = sData.skillsCount || 61;
-          newMetrics.sessionsCount = sData.sessionsCount || 20;
-          newMetrics.model = sData.model || 'nvidia/nemotron-3-ultra-550b-a55b';
+          newMetrics.skillsCount = sData.skillsCount ?? 0;
+          newMetrics.sessionsCount = sData.sessionsCount ?? 0;
+          newMetrics.model = sData.model || 'unconfigured';
         }
 
         setTelemetry((prev) => ({ ...prev, ...newMetrics }));
@@ -117,10 +129,10 @@ export default function StartupAnimation({ onComplete }: StartupAnimationProps) 
 
   // Dynamic 15 Boot Stages leveraging real probed telemetry
   const bootStages = [
-    { code: '01/15', label: 'HARDWARE POST', detail: `AMD RYZEN 5 7520U (4C/8T) 4.3GHz ... CPU LOAD ${telemetry.cpuUsage}% ... OK`, category: 'HARDWARE' },
-    { code: '02/15', label: 'HOST KERNEL', detail: 'LINUX 6.6+ MICROSOFT WSL2 INTEROP ... VIRTUALIZED LINK VERIFIED', category: 'KERNEL' },
-    { code: '03/15', label: 'SUBSYSTEM RAM', detail: `${telemetry.ramUsedMB}MB ALLOCATED / ${telemetry.ramTotalMB}MB WSL POOL (${telemetry.ramUsage}% PRESSURE) ... NOMINAL`, category: 'MEMORY' },
-    { code: '04/15', label: 'DIRECTX SHADERS', detail: 'AMD RADEON 610M D3D12 (/dev/dxg) ... 3D HARDWARE ACCEL READY', category: 'GRAPHICS' },
+    { code: '01/15', label: 'HARDWARE POST', detail: `${telemetry.cpuModel.toUpperCase()} ... CPU LOAD ${telemetry.cpuUsage >= 0 ? `${telemetry.cpuUsage}%` : 'N/A'}`, category: 'HARDWARE' },
+    { code: '02/15', label: 'HOST KERNEL', detail: `${telemetry.distro.toUpperCase()} // ${telemetry.kernel.toUpperCase()}`, category: 'KERNEL' },
+    { code: '03/15', label: 'SUBSYSTEM RAM', detail: `${telemetry.ramTotalMB > 0 ? `${telemetry.ramUsedMB}MB ALLOCATED / ${telemetry.ramTotalMB}MB (${telemetry.ramUsage}% PRESSURE)` : 'MEMORY TELEMETRY UNAVAILABLE'}`, category: 'MEMORY' },
+    { code: '04/15', label: 'GRAPHICS', detail: `${telemetry.gpuModel.toUpperCase()} ... USAGE ${telemetry.gpuModel === 'GPU telemetry unavailable' ? 'N/A' : 'SENSOR AVAILABLE'}`, category: 'GRAPHICS' },
     { code: '05/15', label: 'SYSTEMD DAEMON', detail: `hermes-gateway.service (PID ${telemetry.gatewayPid}) ... ${telemetry.gatewayState.toUpperCase()}`, category: 'DAEMON' },
     { code: '06/15', label: 'HERMES AGENT', detail: 'CORE RUNTIME v0.21.6 // nousresearch/hermes-agent ... SYNCED', category: 'AGENT' },
     { code: '07/15', label: 'PYTHON SANDBOX', detail: 'uv Python 3.14.7 SUBPROCESS ISOLATION JAIL ... MOUNTED', category: 'RUNTIME' },
@@ -131,7 +143,7 @@ export default function StartupAnimation({ onComplete }: StartupAnimationProps) 
     { code: '12/15', label: 'SARVAM SAARAS AI', detail: 'NEURAL VOICE SPEECH-TO-TEXT & AUDIO SYNTHESIS ... LINKED', category: 'VOICE' },
     { code: '13/15', label: 'PROCEDURAL SFX', detail: 'WEB AUDIO PROCEDURAL HARMONIC OSCILLATOR ARSENAL ... ONLINE', category: 'AUDIO' },
     { code: '14/15', label: 'MARK-XV HUD', detail: 'CYBERNETIC NEON PROJECTION & RADAR TELEMETRY ... ENGAGED', category: 'INTERFACE' },
-    { code: '15/15', label: 'STARK PROTOCOL', detail: 'ALL 15 SUB-SYSTEMS NOMINAL // WELCOME OPERATOR', category: 'MISSION' },
+    { code: '15/15', label: 'STARK PROTOCOL', detail: 'BOOT SEQUENCE COMPLETE // CHECK SUBSYSTEM STATUS', category: 'MISSION' },
   ];
 
   // Key listeners for skip, turbo, chat or hud
@@ -231,7 +243,7 @@ export default function StartupAnimation({ onComplete }: StartupAnimationProps) 
         OPTICAL_RETICLE: LOCKED // ZERO_LATENCY: 0.08ms
       </div>
       <div className="pointer-events-none absolute bottom-1.5 left-4 text-[8px] font-mono text-primary/40 tracking-widest hidden xl:block z-10">
-        SYSTEM: KALI_WSL2 // PID {telemetry.gatewayPid} // UV-PY 3.14.7
+        {'SYSTEM: KALI_WSL2 // PID '}{telemetry.gatewayPid}{' // UV-PY 3.14.7'}
       </div>
       <div className="pointer-events-none absolute bottom-1.5 right-4 text-[8px] font-mono text-primary/40 tracking-widest text-right hidden xl:block z-10">
         [ STARK_HERMES_MARK_XV // SYSTEM_BOOTLOADER ]

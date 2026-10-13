@@ -13,6 +13,7 @@ interface LoopingVoiceHUDProps {
   activeTaskTitle?: string;
   activeProtocol?: string;
   minimal?: boolean;
+  activationMode?: 'key_ptt' | 'hands_free';
 }
 
 const LoopingVoiceHUD = ({
@@ -21,6 +22,7 @@ const LoopingVoiceHUD = ({
   activeTaskTitle,
   activeProtocol,
   minimal = false,
+  activationMode = 'hands_free',
 }: LoopingVoiceHUDProps) => {
   const [particles, setParticles] = useState<React.CSSProperties[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -44,7 +46,8 @@ const LoopingVoiceHUD = ({
     sendVoiceQuery,
     cancel,
   } = useRealVoice({
-    initialMode: 'auto',
+    initialMode: activationMode === 'hands_free' ? 'auto' : 'manual',
+    continuousDictation: activationMode === 'hands_free',
     skipApiQuery: true,
     onTranscriptReady: (transcriptText) => {
       if (onSendMessage) {
@@ -57,6 +60,14 @@ const LoopingVoiceHUD = ({
       }
     },
   });
+
+  const appliedActivationModeRef = useRef<'key_ptt' | 'hands_free' | null>(null);
+  useEffect(() => {
+    if (appliedActivationModeRef.current === activationMode) return;
+    appliedActivationModeRef.current = activationMode;
+    const desiredMode = activationMode === 'hands_free' ? 'auto' : 'manual';
+    if (mode !== desiredMode) setMode(desiredMode);
+  }, [activationMode, mode, setMode]);
 
   const effectiveStatus = externalLoading ? 'thinking' : status;
 
@@ -191,7 +202,9 @@ const LoopingVoiceHUD = ({
               ? currentTaskTitle || "INFERENCE IN WSL..."
               : effectiveStatus === 'listening'
               ? "🔴 LISTENING..."
-              : 'SAY "HERMES"'}
+              : activationMode === 'hands_free'
+                ? 'SPEAK NATURALLY'
+                : 'SAY "HERMES"'}
           </span>
         </button>
       </div>
@@ -227,7 +240,7 @@ const LoopingVoiceHUD = ({
           )}
         >
           <Radio size={11} className={mode === 'auto' ? 'text-accent animate-pulse' : 'opacity-60'} />
-          <span>AUTO: &quot;HERMES&quot; / &quot;JARVIS&quot;</span>
+          <span>{activationMode === 'hands_free' ? 'AUTO: SPEAK & PAUSE' : 'AUTO: &quot;HERMES&quot; / &quot;JARVIS&quot;'}</span>
         </button>
       </div>
 
@@ -562,7 +575,7 @@ const LoopingVoiceHUD = ({
             <span className={cn(isVoiceActive ? 'text-destructive font-bold' : 'text-primary')}>
               {isVoiceActive ? 'VOICE DETECTED' : 'MIC ACTIVE'}
             </span>
-            <span className="text-primary/40">//</span>
+            <span className="text-primary/40">{'//'}</span>
             <span>{inputDb} dBFS</span>
           </div>
         )}

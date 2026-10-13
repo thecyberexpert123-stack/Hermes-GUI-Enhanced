@@ -2,7 +2,8 @@ import { execFile, exec, execSync } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
-import { resolveLocationCoordinates, GODS_EYE_PRESETS, buildGodsEyeUrl, cleanGeographicQuery, extractGodsEyeTarget } from './godseye';
+import os from 'os';
+import { resolveLocationCoordinates, GODS_EYE_PRESETS, extractGodsEyeTarget } from './godseye';
 
 export const execFileAsync = promisify(execFile);
 export const execAsync = promisify(exec);
@@ -62,6 +63,7 @@ export interface ProcessInfo {
 export interface SystemTelemetry {
   cpuUsage: number;
   gpuUsage: number;
+  gpuAvailable: boolean;
   ramUsage: number;
   ramTotalMB: number;
   ramUsedMB: number;
@@ -72,6 +74,9 @@ export interface SystemTelemetry {
   networkOutMbps: number;
   batteryLevel: number;
   batteryCharging: boolean;
+  batteryAvailable: boolean;
+  cpuTemperatureC: number;
+  cpuFrequencyGHz: number;
   uptimeSeconds: number;
   uptimeFormatted: string;
   loadAverage: string;
@@ -100,27 +105,26 @@ let lastCpuStat: { total: number; idle: number } | null = null;
 let lastNetStat: { rxBytes: number; txBytes: number; timestamp: number } | null = null;
 
 export async function getHermesStatus(): Promise<HermesStatus> {
-  let version = '0.21.6';
-  let gatewayState: 'running' | 'stopped' | 'unknown' = 'running';
-  let gatewayPid: number | undefined = 358;
-  let model = 'nvidia/nemotron-3-ultra-550b-a55b';
-  let provider = 'nvidia';
+  let version = 'unknown';
+  let gatewayState: 'running' | 'stopped' | 'unknown' = 'unknown';
+  let gatewayPid: number | undefined;
+  let model = 'unconfigured';
+  let provider = 'unconfigured';
   const platforms: HermesStatus['platforms'] = {
-    telegram: { state: 'connected' },
-    whatsapp: { state: 'retrying', error: 'Bridge process died' },
+    telegram: { state: 'unknown' },
+    whatsapp: { state: 'unknown' },
   };
   let activeAgents = 0;
-  let skillsCount = 61;
-  let sessionsCount = 20;
+  let sessionsCount = 0;
 
   try {
-    const isServiceActive = await execAsync('systemctl --user is-active hermes-gateway').then(
-      (r) => r.stdout.trim() === 'active',
-      () => false
-    );
-    gatewayState = isServiceActive ? 'running' : 'stopped';
-  } catch {
-    // fallback
+    const serviceState = (await execAsync('systemctl --user is-active hermes-gateway')).stdout.trim();
+    if (serviceState === 'active') gatewayState = 'running';
+    else if (serviceState === 'inactive' || serviceState === 'failed') gatewayState = 'stopped';
+  } catch (error: any) {
+    const serviceState = String(error.stdout || '').trim();
+    if (serviceState === 'inactive' || serviceState === 'failed') gatewayState = 'stopped';
+    // Keep the state unknown when systemd cannot report a service status.
   }
 
   try {
@@ -130,6 +134,14 @@ export async function getHermesStatus(): Promise<HermesStatus> {
       const data = JSON.parse(stateContent);
       version = data.code_version || version;
       gatewayPid = data.pid || gatewayPid;
+      if (Number.isInteger(gatewayPid) && gatewayPid! > 0) {
+        try {
+          process.kill(gatewayPid!, 0);
+          gatewayState = 'running';
+        } catch {
+          if (gatewayState !== 'unknown') gatewayState = 'stopped';
+        }
+      }
       activeAgents = data.active_agents || 0;
       if (data.platforms) {
         if (data.platforms.telegram) {
@@ -156,8 +168,8 @@ export async function getHermesStatus(): Promise<HermesStatus> {
       const configStr = fs.readFileSync(configPath, 'utf8');
       const modelMatch = configStr.match(/default:\s*['"]?([^'"\n]+)['"]?/);
       if (modelMatch) model = modelMatch[1];
-      const providerMatch = configStr.match(/provider:\s*['"]?([^'"\n]+)['"]?/);
-      if (providerMatch) provider = providerMatch[1];
+      const providerMatch = configStr.match(/provider:\s*['"]?([^'"\n#]+)['"]?/);
+      if (providerMatch) provider = providerMatch[1].trim();
     }
   } catch (err) {
     console.warn('Error reading Hermes config.yaml:', err);
@@ -174,6 +186,8 @@ export async function getHermesStatus(): Promise<HermesStatus> {
   } catch {
     // fallback
   }
+
+  const skillsCount = (await getHermesSkills().catch(() => [])).length;
 
   return {
     version,
@@ -425,7 +439,9 @@ export async function performSystemBoost(): Promise<{
     }
   } catch {}
 
-  const freedMB = Math.max(15, beforeRamMB - afterRamMB);
+  // Report only an observed decrease. sync and a WAL checkpoint do not guarantee
+  // that Linux will release memory, so a minimum/fixed value is misleading.
+  const freedMB = Math.max(0, beforeRamMB - afterRamMB);
 
   return {
     freedMB,
@@ -451,7 +467,7 @@ export async function executeHermesChat(
   // Instant zero-latency responses for natural greetings and politeness
   if (/^(?:hi|hello|hey|yo|howdy|greetings|good\s+(?:morning|afternoon|evening|day)|how are you)[.?!]?$/i.test(trimmed)) {
     return {
-      text: `Greetings, Operator. Hermes Agent is online, fully calibrated in Kali WSL2, and standing by for your directive. What task shall we execute?`,
+      text: `Hello, Operator. What task can I help with?`,
       sessionId: options.sessionId,
     };
   }
@@ -570,19 +586,18 @@ ${rows}
     const status = await getHermesStatus();
     const telemetry = getSystemTelemetry();
     return {
-      text: `### 🟢 HERMES CORE & DAEMON STATUS // NOMINAL
+      text: `### HERMES CORE & DAEMON STATUS
 
-- **Gateway Daemon:** \`${status.gatewayState.toUpperCase()}\` (PID: \`${status.gatewayPid || '372'}\`)
-- **System Readiness:** \`100% OPERATIONAL // ALL CIRCUITS NOMINAL\`
+- **Gateway Daemon:** \`${status.gatewayState.toUpperCase()}\` (PID: \`${status.gatewayPid ?? 'not reported'}\`)
+- **System Readiness:** \`${status.gatewayState === 'running' ? 'Gateway running' : 'Check subsystem diagnostics'}\`
 - **Hermes Version:** \`${status.version}\`
 - **Active Model:** \`${status.model}\` (\`${status.provider}\`)
 - **Skills Catalog:** \`${status.skillsCount} skills loaded\`
 - **Database Sessions:** \`${status.sessionsCount} sessions recorded in state.db\`
-- **CPU Activity:** \`${telemetry.cpuUsage}%\` (${telemetry.cpuModel || 'AMD Ryzen'})
-- **System Memory:** \`${telemetry.ramUsedMB} MB / ${telemetry.ramTotalMB} MB (${telemetry.ramUsage}%)\`
-- **Host Subsystem:** Linux 6.6+ Microsoft WSL2 (Debian/Kali)
-- **Voice Engine:** Sarvam Saaras AI Engine (Active)
-- **Wispr Flow Engine:** Windows Host Bridge (Active)`,
+- **CPU Activity:** \`${telemetry.cpuUsage >= 0 ? `${telemetry.cpuUsage}%` : 'unavailable'}\` (${telemetry.cpuModel})
+- **System Memory:** \`${telemetry.ramTotalMB > 0 ? `${telemetry.ramUsedMB} MB / ${telemetry.ramTotalMB} MB (${telemetry.ramUsage}%)` : 'unavailable'}\`
+- **Host Subsystem:** ${telemetry.distro} | ${telemetry.kernel}
+- **Voice Engine:** Check System Settings for configured voice providers`,
       sessionId: options.sessionId,
     };
   }
@@ -604,7 +619,7 @@ ${rows}
       const lines = netstatOut.split('\n').filter((l) => l.includes('LISTEN')).slice(0, 8);
       const telemetry = getSystemTelemetry();
       return {
-        text: `### 🛡️ KALI WSL2 SECURITY AUDIT REPORT // NOMINAL
+      text: `### 🛡️ KALI WSL2 LISTENING SOCKETS
 
 **Kernel Fingerprint:** \`${unameOut.trim()}\`
 **Active Processes Monitored:** \`${telemetry.topProcesses.length}\`
@@ -612,17 +627,15 @@ ${rows}
 
 #### 🌐 OPEN SOCKET INTERFACES (LISTEN):
 \`\`\`
-${lines.join('\n') || 'All external interfaces secured behind WSL2 NAT perimeter.'}
+${lines.join('\n') || 'No listening sockets were reported by ss/netstat.'}
 \`\`\`
 
-- **Perimeter Defense:** WSL2 NAT Virtual Ethernet Isolation Active
-- **Subprocess Quarantine:** \`uv\` Python 3.14.7 isolation sandbox armed
-- **Integrity Rating:** **100% SECURE // 0 ANOMALIES DETECTED**`,
+- This limited local check does not establish that the host or services are secure.`,
         sessionId: options.sessionId,
       };
     } catch (err: any) {
       return {
-        text: `Security audit completed. Perimeter status nominal. Diagnostics error: ${err.message}`,
+        text: `Could not complete the socket check: ${err.message}`,
         sessionId: options.sessionId,
       };
     }
@@ -637,19 +650,13 @@ ${lines.join('\n') || 'All external interfaces secured behind WSL2 NAT perimeter
     lower.includes('purge memory') ||
     lower.includes('purge dirty memory')
   ) {
-    try {
-      execSync('sync 2>/dev/null || true');
-    } catch {}
-    const telemetry = getSystemTelemetry();
+    const optimization = await performSystemBoost();
     return {
-      text: `### ⚡ STARK PROTOCOL // REACTOR OVERCLOCK COMPLETE
+      text: `### ⚡ SYSTEM MAINTENANCE COMPLETE
 
-- **Hyper-Boost Surge:** \`ENGAGED\`
-- **Subsystem State:** \`OVERCLOCKED // MAXIMUM THROUGHPUT\`
-- **Memory Purged:** Dirty memory cache flushed to disk
-- **Available RAM:** \`${telemetry.ramTotalMB - telemetry.ramUsedMB} MB\` free (${telemetry.ramUsage}% in use)
-- **Subprocess Throttle:** \`OFF // UNCONSTRAINED\`
-- **Status:** **ALL SYSTEMS SURGING AT PEAK EFFICIENCY**`,
+- **Observed memory decrease:** ${optimization.freedMB} MB
+- **RAM before / after:** ${optimization.beforeRamMB} MB / ${optimization.afterRamMB} MB
+- **Maintenance actions:** ${optimization.details.length ? optimization.details.join('; ') : 'No maintenance actions completed.'}`,
       sessionId: options.sessionId,
     };
   }
@@ -888,9 +895,9 @@ Please check the spelling or provide an alternative landmark or city name.`,
 
 export function getSystemTelemetry(): SystemTelemetry {
   // 1. RAM Calculation
-  let ramTotalMB = 3549;
-  let ramUsedMB = 1100;
-  let ramUsage = 31.0;
+  let ramTotalMB = 0;
+  let ramUsedMB = 0;
+  let ramUsage = -1;
 
   try {
     const meminfo = fs.readFileSync('/proc/meminfo', 'utf8');
@@ -906,7 +913,7 @@ export function getSystemTelemetry(): SystemTelemetry {
   } catch {}
 
   // 2. CPU Calculation
-  let cpuUsage = 18;
+  let cpuUsage = -1;
   try {
     const statLine = fs.readFileSync('/proc/stat', 'utf8').split('\n')[0];
     const parts = statLine.trim().split(/\s+/).slice(1).map(Number);
@@ -924,8 +931,8 @@ export function getSystemTelemetry(): SystemTelemetry {
   } catch {}
 
   // 3. Network Delta Calculation
-  let networkInMbps = 2.4;
-  let networkOutMbps = 0.8;
+  let networkInMbps = 0;
+  let networkOutMbps = 0;
   try {
     const netLines = fs.readFileSync('/proc/net/dev', 'utf8').split('\n');
     let totalRx = 0;
@@ -953,33 +960,47 @@ export function getSystemTelemetry(): SystemTelemetry {
   } catch {}
 
   // 4. Real Battery & Power
-  let batteryLevel = 85;
-  let batteryCharging = true;
+  let batteryLevel = -1;
+  let batteryCharging = false;
+  let batteryAvailable = false;
   try {
-    if (fs.existsSync('/sys/class/power_supply/BAT1/capacity')) {
-      const cap = fs.readFileSync('/sys/class/power_supply/BAT1/capacity', 'utf8').trim();
-      batteryLevel = parseInt(cap, 10);
-    }
-    if (fs.existsSync('/sys/class/power_supply/BAT1/status')) {
-      const status = fs.readFileSync('/sys/class/power_supply/BAT1/status', 'utf8').trim();
-      batteryCharging = status.toLowerCase() === 'charging';
+    const powerSupplies = '/sys/class/power_supply';
+    for (const supply of fs.readdirSync(powerSupplies)) {
+      const supplyPath = path.join(powerSupplies, supply);
+      if (fs.readFileSync(path.join(supplyPath, 'type'), 'utf8').trim() !== 'Battery') continue;
+      const capacity = Number(fs.readFileSync(path.join(supplyPath, 'capacity'), 'utf8').trim());
+      if (!Number.isFinite(capacity)) continue;
+      batteryLevel = Math.min(100, Math.max(0, capacity));
+      batteryAvailable = true;
+      try {
+        const status = fs.readFileSync(path.join(supplyPath, 'status'), 'utf8').trim().toLowerCase();
+        batteryCharging = status === 'charging' || status === 'full';
+      } catch {
+        batteryCharging = false;
+      }
+      break;
     }
   } catch {}
 
   // 5. Real Disk Usage
-  let diskTotalGB = 1006;
-  let diskUsedGB = 56;
-  let diskUsage = 5.6;
+  let diskTotalGB = 0;
+  let diskUsedGB = 0;
+  let diskUsage = 0;
   try {
-    const dfRes = fs.readFileSync('/proc/mounts', 'utf8');
-    diskTotalGB = 1006;
-    diskUsedGB = 56;
-    diskUsage = 5.6;
+    const stat = fs.statfsSync('/');
+    const blockSize = Number(stat.bsize);
+    const totalBytes = Number(stat.blocks) * blockSize;
+    const availableBytes = Number(stat.bavail) * blockSize;
+    if (totalBytes > 0 && Number.isFinite(totalBytes) && Number.isFinite(availableBytes)) {
+      diskTotalGB = totalBytes / (1024 ** 3);
+      diskUsedGB = Math.max(0, totalBytes - availableBytes) / (1024 ** 3);
+      diskUsage = Math.min(100, Math.max(0, (diskUsedGB / diskTotalGB) * 100));
+    }
   } catch {}
 
   // 6. Uptime
-  let uptimeSeconds = 3600;
-  let uptimeFormatted = '1h 0m';
+  let uptimeSeconds = 0;
+  let uptimeFormatted = 'Unavailable';
   try {
     const uptimeStr = fs.readFileSync('/proc/uptime', 'utf8').split(' ')[0];
     uptimeSeconds = Math.floor(parseFloat(uptimeStr));
@@ -990,14 +1011,14 @@ export function getSystemTelemetry(): SystemTelemetry {
   } catch {}
 
   // 7. Load Average
-  let loadAverage = '0.55, 0.45, 0.38';
+  let loadAverage = 'Unavailable';
   try {
     const loadStr = fs.readFileSync('/proc/loadavg', 'utf8').split(' ').slice(0, 3).join(', ');
     if (loadStr) loadAverage = loadStr;
   } catch {}
 
   // 8. CPU Model
-  let cpuModel = 'AMD Ryzen 5 7520U';
+  let cpuModel = 'CPU telemetry unavailable';
   try {
     const cpuinfo = fs.readFileSync('/proc/cpuinfo', 'utf8');
     const modelMatch = cpuinfo.match(/model name\s*:\s*(.+)/);
@@ -1006,13 +1027,60 @@ export function getSystemTelemetry(): SystemTelemetry {
     }
   } catch {}
 
-  const gpuModel = 'AMD Radeon 610M Graphics';
-  const distro = 'Kali Linux (WSL2)';
+  let gpuModel = 'GPU telemetry unavailable';
+  let gpuUsage = -1;
+  try {
+    const drmRoot = '/sys/class/drm';
+    for (const card of fs.readdirSync(drmRoot)) {
+      if (!/^card\d+$/.test(card)) continue;
+      const device = path.join(drmRoot, card, 'device');
+      const busyPath = path.join(device, 'gpu_busy_percent');
+      if (fs.existsSync(busyPath)) {
+        const busy = Number(fs.readFileSync(busyPath, 'utf8').trim());
+        if (Number.isFinite(busy)) {
+          gpuUsage = Math.min(100, Math.max(0, busy));
+          gpuModel = fs.existsSync(path.join(device, 'product_name'))
+            ? fs.readFileSync(path.join(device, 'product_name'), 'utf8').trim()
+            : fs.readFileSync(path.join(device, 'uevent'), 'utf8').match(/DRIVER=(.+)/)?.[1] || 'GPU';
+          break;
+        }
+      }
+    }
+  } catch {}
+  let distro = `${os.type()} ${os.release()}`;
+  try {
+    const osRelease = fs.readFileSync('/etc/os-release', 'utf8');
+    const prettyName = osRelease.match(/^PRETTY_NAME="?([^"\n]+)"?/m)?.[1];
+    if (prettyName) distro = prettyName;
+    if (os.release().toLowerCase().includes('microsoft')) distro += ' (WSL2)';
+  } catch {}
   let kernel = 'Linux 6.6+';
   try {
     const versionStr = fs.readFileSync('/proc/version', 'utf8');
     const versionMatch = versionStr.match(/Linux version ([^\s]+)/);
     if (versionMatch) kernel = `Linux ${versionMatch[1].split('-')[0]}`;
+  } catch {}
+
+  let cpuTemperatureC = -1;
+  try {
+    const thermalRoot = '/sys/class/thermal';
+    for (const zone of fs.readdirSync(thermalRoot)) {
+      if (!/^thermal_zone\d+$/.test(zone)) continue;
+      const zonePath = path.join(thermalRoot, zone);
+      const type = fs.readFileSync(path.join(zonePath, 'type'), 'utf8').trim().toLowerCase();
+      if (!/(cpu|package|soc|x86)/.test(type)) continue;
+      const temp = Number(fs.readFileSync(path.join(zonePath, 'temp'), 'utf8').trim());
+      if (Number.isFinite(temp) && temp > 0) {
+        cpuTemperatureC = temp > 1000 ? temp / 1000 : temp;
+        break;
+      }
+    }
+  } catch {}
+
+  let cpuFrequencyGHz = -1;
+  try {
+    const frequency = Number(fs.readFileSync('/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq', 'utf8').trim());
+    if (Number.isFinite(frequency) && frequency > 0) cpuFrequencyGHz = frequency / 1_000_000;
   } catch {}
 
   // 9. Real Top Processes via live ps table
@@ -1045,8 +1113,8 @@ export function getSystemTelemetry(): SystemTelemetry {
             pid,
             name: comm,
             app,
-            cpu: '0.4%',
-            mem: '2.1%',
+            cpu: 'N/A',
+            mem: 'N/A',
             status,
           });
         } catch {}
@@ -1054,18 +1122,10 @@ export function getSystemTelemetry(): SystemTelemetry {
     } catch {}
   }
 
-  if (topProcesses.length === 0) {
-    topProcesses.push(
-      { pid: '358', name: 'hermes-gateway', app: 'Hermes Agent Core (PID 358)', cpu: '3.8%', mem: '6.7%', status: 'RUNNING' },
-      { pid: '1', name: 'systemd', app: 'Kali WSL2 Systemd Core', cpu: '0.0%', mem: '0.2%', status: 'ACTIVE' },
-      { pid: '15724', name: 'next-server', app: 'Studio Next.js V8 Engine', cpu: '3.9%', mem: '5.1%', status: 'ACTIVE' },
-      { pid: '4299', name: 'vite (godseye)', app: "God's Eye Cesium Engine", cpu: '0.8%', mem: '2.1%', status: 'ACTIVE' }
-    );
-  }
-
   return {
     cpuUsage,
-    gpuUsage: Math.min(100, Math.max(5, Math.round(cpuUsage * 0.7 + 5))),
+    gpuUsage,
+    gpuAvailable: gpuUsage >= 0,
     ramUsage,
     ramTotalMB,
     ramUsedMB,
@@ -1076,6 +1136,9 @@ export function getSystemTelemetry(): SystemTelemetry {
     networkOutMbps,
     batteryLevel,
     batteryCharging,
+    batteryAvailable,
+    cpuTemperatureC,
+    cpuFrequencyGHz,
     uptimeSeconds,
     uptimeFormatted,
     loadAverage,

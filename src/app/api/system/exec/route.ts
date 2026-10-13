@@ -22,7 +22,6 @@ const SAFE_PREFIXES = [
   'head',
   'tail',
   'grep',
-  'find',
   'echo',
   'date',
   'ip',
@@ -31,8 +30,18 @@ const SAFE_PREFIXES = [
   'hermes',
   'systemctl status',
   'which',
-  'kill',
+  'git status',
+  'git diff',
+  'git log',
+  'git branch --show-current',
 ];
+
+function isAllowedCommand(command: string): boolean {
+  // This endpoint invokes a shell for the interactive terminal. Do not allow
+  // shell composition, substitutions, redirection, or newlines.
+  if (/[;&|<>`$()\n\r]/.test(command)) return false;
+  return SAFE_PREFIXES.some((prefix) => command === prefix || command.startsWith(`${prefix} `));
+}
 
 export async function POST(req: Request) {
   try {
@@ -42,6 +51,9 @@ export async function POST(req: Request) {
     }
 
     const trimmed = command.trim();
+    if (trimmed.length > 4096) {
+      return NextResponse.json({ stdout: '', stderr: 'Command exceeds the 4096 character limit.', exitCode: 1 }, { status: 413 });
+    }
     if (!trimmed) {
       return NextResponse.json({ stdout: '', stderr: '', exitCode: 0 });
     }
@@ -61,6 +73,17 @@ export async function POST(req: Request) {
         {
           stdout: '',
           stderr: 'EXECUTION_DENIED: Destructive or system-critical alteration commands are restricted by Stark Protocol.',
+          exitCode: 1,
+        },
+        { status: 403 }
+      );
+    }
+
+    if (!isAllowedCommand(trimmed)) {
+      return NextResponse.json(
+        {
+          stdout: '',
+          stderr: 'EXECUTION_DENIED: Use a supported diagnostic command. Shell operators and command chaining are not allowed.',
           exitCode: 1,
         },
         { status: 403 }

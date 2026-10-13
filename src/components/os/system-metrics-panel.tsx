@@ -28,23 +28,23 @@ const PowerIndicator = ({ level, charging }: { level: number; charging: boolean 
         <span className="font-mono text-[11px]">ARC REACTOR / POWER</span>
       </div>
       <div className="flex items-center gap-1 font-bold text-foreground font-mono text-[11px]">
-        {charging && <Zap size={11} className="text-emerald-400 fill-emerald-400 animate-pulse" />}
-        <span>{level.toFixed(0)}%</span>
+        {charging && level >= 0 && <Zap size={11} className="text-emerald-400 fill-emerald-400 animate-pulse" />}
+        <span>{level >= 0 ? `${level.toFixed(0)}%` : 'N/A'}</span>
       </div>
     </div>
     <div className="w-full bg-primary/10 h-1.5 rounded-full overflow-hidden p-0.5 border border-primary/20">
       <div
         className="h-full rounded-full transition-all duration-300 shadow-[0_0_8px_currentColor]"
         style={{
-          width: `${Math.min(100, Math.max(5, level))}%`,
-          backgroundColor: level < 20 ? 'hsl(var(--destructive))' : 'hsl(var(--primary))',
+          width: `${level >= 0 ? Math.min(100, Math.max(5, level)) : 0}%`,
+          backgroundColor: level >= 0 && level < 20 ? 'hsl(var(--destructive))' : 'hsl(var(--primary))',
         }}
       />
     </div>
     <div className="flex items-center justify-between text-[9px] font-mono text-muted-foreground">
-      <span className="text-primary/70">CELL VOLTAGE: 3.84V NOMINAL</span>
+      <span className="text-primary/70">{level >= 0 ? 'BATTERY TELEMETRY' : 'BATTERY UNAVAILABLE'}</span>
       <span className="text-emerald-400 font-bold tracking-wider">
-        {charging ? 'SURGE BUS ACTIVE' : 'STEADY DISCHARGE'}
+        {level < 0 ? 'NO SENSOR' : charging ? 'CHARGING' : 'DISCHARGING'}
       </span>
     </div>
   </div>
@@ -58,13 +58,13 @@ const StorageIndicator = ({ diskUsage, total, used }: { diskUsage: number; total
         <span className="text-[11px]">WSL EXT4 ROOT:</span>
       </div>
       <span className="font-bold text-foreground text-[11px]">
-        {used.toFixed(0)} / {total} GB <span className="text-accent">({diskUsage.toFixed(0)}%)</span>
+        {total > 0 ? <>{used.toFixed(0)} / {total.toFixed(0)} GB <span className="text-accent">({diskUsage.toFixed(0)}%)</span></> : 'N/A'}
       </span>
     </div>
     <div className="w-full bg-primary/10 h-1.5 rounded-full overflow-hidden border border-primary/20">
       <div
         className="bg-primary h-full rounded-full transition-all duration-500 shadow-[0_0_8px_hsl(var(--primary))]"
-        style={{ width: `${Math.min(100, Math.max(3, diskUsage))}%` }}
+        style={{ width: `${total > 0 ? Math.min(100, Math.max(3, diskUsage)) : 0}%` }}
       />
     </div>
   </div>
@@ -73,11 +73,10 @@ const StorageIndicator = ({ diskUsage, total, used }: { diskUsage: number; total
 const SystemMetricsDisplay = ({ metrics }: { metrics: FullSystemMetrics }) => {
   const ramDisplay = metrics.ramUsedMB && metrics.ramTotalMB
     ? `${(metrics.ramUsedMB / 1024).toFixed(1)} / ${(metrics.ramTotalMB / 1024).toFixed(1)} GB`
-    : `${metrics.ramUsage.toFixed(0)}%`;
+    : metrics.ramUsage >= 0 ? `${metrics.ramUsage.toFixed(0)}%` : 'N/A';
 
-  // Calculated estimated thermal temperature based on CPU load
-  const estimatedTemp = (36.4 + (metrics.cpuUsage / 100) * 24.2).toFixed(1);
-  const isTempHot = parseFloat(estimatedTemp) > 55.0;
+  const temperature = metrics.cpuTemperatureC;
+  const isTempHot = temperature !== undefined && temperature >= 80;
 
   return (
     <JarvisPanel title="WSL TELEMETRY & HARDWARE" badge="LIVE 200MS" className="w-80">
@@ -102,7 +101,7 @@ const SystemMetricsDisplay = ({ metrics }: { metrics: FullSystemMetrics }) => {
           <div className="flex justify-between items-center text-[10px] text-muted-foreground font-mono mt-1.5 px-0.5">
             <span className="flex items-center gap-1">
               <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-              <span>CPU: <strong className="text-foreground">{metrics.cpuUsage.toFixed(0)}%</strong></span>
+              <span>CPU: <strong className="text-foreground">{metrics.cpuUsage >= 0 ? `${metrics.cpuUsage.toFixed(0)}%` : 'N/A'}</strong></span>
             </span>
             <span className="flex items-center gap-1">
               <span className="h-1.5 w-1.5 rounded-full bg-accent" />
@@ -120,13 +119,13 @@ const SystemMetricsDisplay = ({ metrics }: { metrics: FullSystemMetrics }) => {
             />
             <span className="text-primary/80">THERMAL:</span>
             <span className={cn('font-bold', isTempHot ? 'text-destructive' : 'text-emerald-400')}>
-              {estimatedTemp}°C
+              {temperature !== undefined && temperature >= 0 ? `${temperature.toFixed(1)}°C` : 'N/A'}
             </span>
           </div>
 
           <div className="flex items-center gap-1.5 text-muted-foreground">
             <Activity size={12} className="text-accent" />
-            <span>FREQ: <strong className="text-foreground">2.8-4.3 GHz</strong></span>
+            <span>FREQ: <strong className="text-foreground">{metrics.cpuFrequencyGHz !== undefined && metrics.cpuFrequencyGHz > 0 ? `${metrics.cpuFrequencyGHz.toFixed(2)} GHz` : 'N/A'}</strong></span>
           </div>
         </div>
 
@@ -145,12 +144,10 @@ const SystemMetricsDisplay = ({ metrics }: { metrics: FullSystemMetrics }) => {
                 <span className="flex items-center gap-0.5 text-emerald-400 font-bold">
                   <ArrowDown size={11} />
                   <span>{metrics.networkInMbps.toFixed(1)}M</span>
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping ml-0.5" />
                 </span>
                 <span className="flex items-center gap-0.5 text-accent font-bold">
                   <ArrowUp size={11} />
                   <span>{metrics.networkOutMbps.toFixed(1)}M</span>
-                  <span className="h-1.5 w-1.5 rounded-full bg-accent animate-ping ml-0.5" />
                 </span>
               </div>
             </div>
@@ -159,8 +156,8 @@ const SystemMetricsDisplay = ({ metrics }: { metrics: FullSystemMetrics }) => {
           {/* Disk storage */}
           <StorageIndicator
             diskUsage={metrics.diskUsage}
-            total={metrics.diskTotalGB ?? 1006}
-            used={metrics.diskUsedGB ?? (metrics.diskTotalGB ? Math.round(metrics.diskTotalGB * (metrics.diskUsage / 100)) : 56)}
+            total={metrics.diskTotalGB ?? 0}
+            used={metrics.diskUsedGB ?? 0}
           />
         </div>
 

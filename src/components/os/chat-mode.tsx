@@ -84,9 +84,10 @@ interface ChatModeProps {
   setMode: (mode: AppMode) => void;
   initialSessionId?: string;
   onSelectSession?: (id: string) => void;
+  onSessionChange?: (id: string | undefined) => void;
 }
 
-const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps) => {
+const ChatMode = ({ setMode, initialSessionId, onSelectSession, onSessionChange }: ChatModeProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -146,11 +147,11 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
     setExecutionMode: setWisprExecutionMode,
     activationMode: wisprActivationMode,
     setActivationMode: setWisprActivationMode,
+    keybinds: wisprKeybinds,
     pendingDictation: wisprPendingDictation,
     setPendingDictation: setWisprPendingDictation,
     approveDictation: approveWisprDictation,
     discardDictation: discardWisprDictation,
-    triggerPtt: triggerWisprPtt,
   } = useWisprFlow({
     onAutoSubmit: (text) => {
       if (text && text.trim()) {
@@ -170,6 +171,7 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
       });
     },
   });
+  const wisprPttLabel = wisprKeybinds.find((keybind) => keybind.action.toLowerCase() === 'ptt')?.keys || 'shortcut not detected';
 
   // Handle keyboard shortcut for pending dictation approval (Enter to approve, Esc to discard)
   useEffect(() => {
@@ -188,112 +190,6 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [wisprPendingDictation, approveWisprDictation, discardWisprDictation]);
-
-  // Hands-free ambient listener when activationMode === 'hands_free' (Zero keyboard keys needed)
-  const [isHandsFreeActive, setIsHandsFreeActive] = useState(false);
-  const handsFreeRecRef = useRef<any>(null);
-
-  useEffect(() => {
-    if (wisprActivationMode !== 'hands_free') {
-      if (handsFreeRecRef.current) {
-        try { handsFreeRecRef.current.abort(); } catch {}
-        handsFreeRecRef.current = null;
-      }
-      setIsHandsFreeActive(false);
-      return;
-    }
-
-    const SpeechRecognition =
-      typeof window !== 'undefined'
-        ? (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-        : null;
-
-    if (!SpeechRecognition) {
-      return;
-    }
-
-    let isStoppedExplicitly = false;
-    let accumulatedText = '';
-    let silenceTimer: any = null;
-
-    const startListener = () => {
-      if (isStoppedExplicitly) return;
-      try {
-        const rec = new SpeechRecognition();
-        rec.continuous = true;
-        rec.interimResults = true;
-        rec.lang = 'en-US';
-
-        rec.onstart = () => {
-          setIsHandsFreeActive(true);
-        };
-
-        rec.onresult = (event: any) => {
-          let currentText = '';
-          for (let i = event.resultIndex; i < event.results.length; ++i) {
-            currentText += event.results[i][0].transcript;
-          }
-          const spoken = currentText.trim();
-          if (spoken) {
-            accumulatedText = spoken;
-            if (silenceTimer) clearTimeout(silenceTimer);
-            silenceTimer = setTimeout(() => {
-              const clean = accumulatedText.trim();
-              if (clean) {
-                accumulatedText = '';
-                if (wisprExecutionMode === 'auto_execute') {
-                  soundFx.playChirp();
-                  toast({
-                    title: "🎙️ Keyless Voice Auto-Executed",
-                    description: `"${clean}"`,
-                  });
-                  sendQueryRef.current(clean);
-                } else {
-                  soundFx.playWakeWordChime();
-                  setWisprPendingDictation({
-                    id: String(Date.now()),
-                    timestamp: new Date().toISOString(),
-                    app: 'Hands-Free Voice',
-                    formattedText: clean,
-                    pastedText: clean,
-                  });
-                }
-              }
-            }, 1200);
-          }
-        };
-
-        rec.onerror = () => {
-          // Keep continuous mode active on transient pauses
-        };
-
-        rec.onend = () => {
-          if (!isStoppedExplicitly && wisprActivationMode === 'hands_free') {
-            setTimeout(startListener, 400);
-          } else {
-            setIsHandsFreeActive(false);
-          }
-        };
-
-        handsFreeRecRef.current = rec;
-        rec.start();
-      } catch (err) {
-        console.warn('Hands-free SpeechRecognition start notice:', err);
-      }
-    };
-
-    startListener();
-
-    return () => {
-      isStoppedExplicitly = true;
-      if (silenceTimer) clearTimeout(silenceTimer);
-      if (handsFreeRecRef.current) {
-        try { handsFreeRecRef.current.abort(); } catch {}
-        handsFreeRecRef.current = null;
-      }
-      setIsHandsFreeActive(false);
-    };
-  }, [wisprActivationMode, wisprExecutionMode, setWisprPendingDictation, toast]);
 
   const spawnKaliTerminal = async () => {
     soundFx.playClick(1100);
@@ -331,8 +227,13 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
   const barAnalyserRef = useRef<AnalyserNode | null>(null);
   const barStreamRef = useRef<MediaStream | null>(null);
   const barAnimFrameRef = useRef<number | null>(null);
+  const barMaxDurationRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const stopBarAudioAnalysis = useCallback(() => {
+    if (barMaxDurationRef.current) {
+      clearTimeout(barMaxDurationRef.current);
+      barMaxDurationRef.current = null;
+    }
     if (barAnimFrameRef.current) {
       cancelAnimationFrame(barAnimFrameRef.current);
       barAnimFrameRef.current = null;
@@ -351,6 +252,10 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
 
   useEffect(() => {
     return () => {
+      if (mediaRecorderRef.current?.state === 'recording') {
+        try { mediaRecorderRef.current.stop(); } catch {}
+      }
+      try { barRecognitionRef.current?.abort(); } catch {}
       stopBarAudioAnalysis();
     };
   }, [stopBarAudioAnalysis]);
@@ -438,11 +343,12 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
 
     // If currently recording with MediaRecorder or SpeechRecognition, stop and transcribe
     if (isRecordingInput) {
-      stopBarAudioAnalysis();
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
         try {
           mediaRecorderRef.current.stop();
         } catch {}
+      } else {
+        stopBarAudioAnalysis();
       }
       if (barRecognitionRef.current) {
         try {
@@ -498,13 +404,13 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
           stopBarAudioAnalysis();
           const cleanType = (recorder.mimeType || 'audio/webm').split(';')[0].trim();
           const audioBlob = new Blob(audioChunksRef.current, { type: cleanType });
+          audioChunksRef.current = [];
 
           if (audioBlob.size > 150) {
             setIsTranscribing(true);
             try {
               const transcript = await transcribeSarvamAudio(audioBlob, {
                 model: 'saaras:v3',
-                languageCode: 'en-IN',
               });
               if (transcript && transcript.trim()) {
                 const cleanTranscript = transcript.trim();
@@ -537,12 +443,19 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
         mediaRecorderRef.current = recorder;
         recorder.start(100);
         setIsRecordingInput(true);
+        barMaxDurationRef.current = setTimeout(() => {
+          if (recorder.state === 'recording') {
+            recorder.stop();
+            setIsRecordingInput(false);
+          }
+        }, 25000);
 
         // Web Audio VAD: Auto-stop after 1.8s silence following speech
         const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
         if (AudioCtx) {
           const audioCtx = new AudioCtx();
           barAudioContextRef.current = audioCtx;
+          if (audioCtx.state === 'suspended') void audioCtx.resume().catch(() => {});
           const analyser = audioCtx.createAnalyser();
           analyser.fftSize = 128;
           barAnalyserRef.current = analyser;
@@ -584,7 +497,6 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
                   } catch {}
                 }
                 setIsRecordingInput(false);
-                stopBarAudioAnalysis();
                 return;
               }
             }
@@ -602,6 +514,10 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
         return;
       } catch (mediaErr: any) {
         console.warn('MediaRecorder / getUserMedia init failed:', mediaErr);
+        stopBarAudioAnalysis();
+        if (mediaRecorderRef.current?.state === 'recording') {
+          try { mediaRecorderRef.current.stop(); } catch {}
+        }
         const name = mediaErr?.name || '';
         let fixMsg = "Microphone permission required or browser does not expose audio capture.";
         if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
@@ -677,7 +593,7 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
       const rec = new SpeechRecognition();
       rec.continuous = false;
       rec.interimResults = true;
-      rec.lang = 'en-US';
+      rec.lang = navigator.language || 'en-IN';
 
       let capturedSpeech = '';
       rec.onstart = () => {
@@ -790,6 +706,7 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
   const handleNewSession = () => {
     soundFx.playClick(1000);
     setSessionId(undefined);
+    onSessionChange?.(undefined);
     setMessages([]);
     toast({
       title: "New Hermes Thread",
@@ -1112,6 +1029,7 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
 
       if (data.sessionId && !sessionId) {
         setSessionId(data.sessionId);
+        onSessionChange?.(data.sessionId);
       }
 
       const answer = data.content || 'Hermes completed the task.';
@@ -1236,6 +1154,23 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
     }
   };
   sendQueryRef.current = sendQuery;
+
+  const handleLoopingVoiceTranscript = (text: string) => {
+    const clean = text.trim();
+    if (!clean) return;
+    if (wisprActivationMode === 'hands_free' && wisprExecutionMode === 'manual_approve') {
+      soundFx.playWakeWordChime();
+      setWisprPendingDictation({
+        id: `hands-free-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        app: 'Hands-Free Voice',
+        formattedText: clean,
+        pastedText: clean,
+      });
+      return;
+    }
+    void sendQuery(clean);
+  };
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -1433,10 +1368,11 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
           <div className="flex flex-col items-center justify-center gap-1 sm:gap-2 w-full my-auto">
             {!isVoiceOpen && (
               <LoopingVoiceHUD
-                onSendMessage={sendQuery}
+                onSendMessage={handleLoopingVoiceTranscript}
                 isLoading={isLoading || !!activeRunningTask}
                 activeTaskTitle={currentTaskTitle}
                 activeProtocol={currentProtocol}
+                activationMode={wisprActivationMode}
               />
             )}
 
@@ -1471,10 +1407,11 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
             </ScrollArea>
             {!isVoiceOpen && (
               <LoopingVoiceHUD
-                onSendMessage={sendQuery}
+                onSendMessage={handleLoopingVoiceTranscript}
                 isLoading={isLoading || !!activeRunningTask}
                 activeTaskTitle={currentTaskTitle}
                 activeProtocol={currentProtocol}
+                activationMode={wisprActivationMode}
                 minimal
               />
             )}
@@ -1611,7 +1548,7 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
               <span className="text-muted-foreground text-[10px] truncate">
                 {wisprActivationMode === 'hands_free'
                   ? 'Keyless Hands-Free Active • Speak freely with zero keys'
-                  : 'Ready • Press Caps Lock on Windows host to dictate'}
+                  : `Ready • Press ${wisprPttLabel} on Windows host to dictate`}
               </span>
             )}
           </div>
@@ -1658,9 +1595,9 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
                   ? "border-sky-400/60 bg-sky-500/25 text-sky-300 shadow-[0_0_10px_hsl(var(--sky-400)/0.4)] animate-pulse"
                   : "border-primary/40 bg-primary/10 text-muted-foreground hover:text-foreground"
               )}
-              title={wisprActivationMode === 'hands_free' ? "Keyless Hands-Free active (no keys needed) - Click to switch to Caps Lock" : "Caps Lock PTT active - Click to switch to Keyless Hands-Free"}
+              title={wisprActivationMode === 'hands_free' ? `Keyless Hands-Free active - Click to switch to ${wisprPttLabel}` : `${wisprPttLabel} PTT active - Click to switch to Keyless Hands-Free`}
             >
-              {wisprActivationMode === 'hands_free' ? '🎙️ KEYLESS' : '⌨️ CAPS LOCK'}
+              {wisprActivationMode === 'hands_free' ? '🎙️ KEYLESS' : `⌨️ ${wisprPttLabel.toUpperCase()}`}
             </button>
 
             {/* Open Settings Modal */}
@@ -1767,7 +1704,7 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
                 setIsWisprModalOpen(true);
               }}
               disabled={isLoading}
-              title="Wispr Flow Windows Engine [Caps Lock]"
+              title={`Wispr Flow Windows Engine [${wisprPttLabel}]`}
             >
               <Waves size={15} className={isWisprRunning ? "animate-pulse" : ""} />
             </Button>
