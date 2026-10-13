@@ -92,37 +92,45 @@ if (-not $NoTerminal) {
     Write-Host " [+] Launching WSL Kali Interactive Terminal Session... " -NoNewline -ForegroundColor Yellow
     $wtPath = "$env:LOCALAPPDATA\Microsoft\WindowsApps\wt.exe"
     if (Test-Path $wtPath) {
-        Start-Process $wtPath -ArgumentList "-p kali-linux -d \\wsl.localhost\kali-linux\home\thecyberexpert"
+        Start-Process $wtPath -ArgumentList "wsl.exe -d $distro ~"
         Write-Host "[WINDOWS TERMINAL]" -ForegroundColor Green
     } else {
-        Start-Process "cmd.exe" -ArgumentList "/c start `"Kali Linux - Hermes Agent OS`" wsl.exe -d $distro"
+        Start-Process "cmd.exe" -ArgumentList "/c start `"Kali Linux - Hermes Agent OS`" wsl.exe -d $distro ~"
         Write-Host "[WSL CONSOLE]" -ForegroundColor Green
     }
 }
 
-# 6. Launch Dedicated Borderless Desktop App Window
+# 6. Launch Standalone Independent Windows Desktop Application
 if (-not $NoBrowser) {
-    Write-Host " [+] Spawning Hermes GUI in Dedicated Desktop Window... " -NoNewline -ForegroundColor Yellow
-    $browserPaths = @(
-        "$env:ProgramFiles(x86)\Microsoft\Edge\Application\msedge.exe",
-        "$env:ProgramFiles\Google\Chrome\Application\chrome.exe",
-        "$env:ProgramFiles\BraveSoftware\Brave-Browser\Application\brave.exe"
-    )
+    Write-Host " [+] Spawning Hermes GUI in Dedicated Application Window... " -NoNewline -ForegroundColor Yellow
+    $appExe = "C:\Users\anish\Hermes-Agent-OS\Hermes-Agent-OS.exe"
+    $electronExe = "C:\Users\anish\Hermes-Agent-OS\node_modules\electron\dist\electron.exe"
 
-    $selectedBrowser = $null
-    foreach ($p in $browserPaths) {
-        if (Test-Path $p) {
-            $selectedBrowser = $p
-            break
-        }
-    }
-
-    if ($selectedBrowser) {
-        Start-Process $selectedBrowser -ArgumentList "--app=`"$studioUrl`" --window-size=1680,1000 --name=`"Hermes Agent OS`""
-        Write-Host "[BORDERLESS APP WINDOW]" -ForegroundColor Green
+    if (Test-Path $appExe) {
+        Start-Process $appExe -WorkingDirectory "C:\Users\anish\Hermes-Agent-OS"
+        Write-Host "[STANDALONE WINDOWS APP]" -ForegroundColor Green
+    } elseif (Test-Path $electronExe) {
+        Start-Process $electronExe -ArgumentList "." -WorkingDirectory "C:\Users\anish\Hermes-Agent-OS"
+        Write-Host "[NATIVE ELECTRON COCKPIT]" -ForegroundColor Green
     } else {
-        Start-Process $studioUrl
-        Write-Host "[DEFAULT BROWSER]" -ForegroundColor Green
+        $browserPaths = @(
+            "$env:ProgramFiles(x86)\Microsoft\Edge\Application\msedge.exe",
+            "$env:ProgramFiles\Google\Chrome\Application\chrome.exe"
+        )
+        $selectedBrowser = $null
+        foreach ($p in $browserPaths) {
+            if (Test-Path $p) {
+                $selectedBrowser = $p
+                break
+            }
+        }
+        if ($selectedBrowser) {
+            Start-Process $selectedBrowser -ArgumentList "--app=`"$studioUrl`" --window-size=1680,1000 --name=`"Hermes Agent OS`""
+            Write-Host "[BORDERLESS APP WINDOW]" -ForegroundColor Green
+        } else {
+            Start-Process $studioUrl
+            Write-Host "[DEFAULT BROWSER]" -ForegroundColor Green
+        }
     }
 }
 

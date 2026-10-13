@@ -135,7 +135,9 @@ export function buildGodsEyeUrl(
     style?: string;
   } = {}
 ): string {
-  const base = GODS_EYE_DEFAULT_URL;
+  const base = typeof window !== 'undefined' && window.location.hostname === '127.0.0.1'
+    ? 'http://127.0.0.1:4173'
+    : GODS_EYE_DEFAULT_URL;
   const embedParam = options.embed ? '?embed=1' : '';
 
   if (lat === undefined || lon === undefined || !Number.isFinite(lat) || !Number.isFinite(lon)) {

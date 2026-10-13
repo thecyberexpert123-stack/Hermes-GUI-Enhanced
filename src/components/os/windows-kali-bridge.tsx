@@ -32,6 +32,8 @@ interface WindowsBridgeTelemetry {
   windowsTerminalPath?: string;
   installedBrowsers: Array<{ name: string; path: string; available: boolean }>;
   distroName: string;
+  isStandaloneAppInstalled?: boolean;
+  isStandaloneAppRunning?: boolean;
 }
 
 interface WindowsKaliBridgeProps {
@@ -173,7 +175,7 @@ export function WindowsKaliBridgeModal({
                 <span>App Window</span>
               </div>
               <div className="mt-1 text-sm font-bold text-blue-400">
-                STANDALONE (ELECTRON)
+                {telemetry?.isStandaloneAppRunning ? 'ACTIVE' : (telemetry?.isStandaloneAppInstalled ? 'READY' : 'ELECTRON')}
               </div>
             </div>
           </div>
