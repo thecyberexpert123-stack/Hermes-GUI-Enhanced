@@ -27,18 +27,37 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Audio file is required in formData' }, { status: 400 });
     }
 
-    const mimeType = (file as Blob).type || '';
+    const rawMime = (file as Blob).type || '';
+    // Strip any parameters (e.g. ';codecs=opus') to prevent Sarvam 400 rejection
+    let cleanMime = rawMime.split(';')[0].trim().toLowerCase();
     let ext = 'wav';
-    if (mimeType.includes('webm')) ext = 'webm';
-    else if (mimeType.includes('ogg')) ext = 'ogg';
-    else if (mimeType.includes('mp4') || mimeType.includes('m4a')) ext = 'm4a';
-    else if (mimeType.includes('mp3') || mimeType.includes('mpeg')) ext = 'mp3';
 
-    const fileName = (file instanceof File && file.name && file.name.includes('.')) 
-      ? file.name 
-      : `audio.${ext}`;
+    if (cleanMime.includes('webm')) {
+      cleanMime = 'audio/webm';
+      ext = 'webm';
+    } else if (cleanMime.includes('ogg') || cleanMime.includes('opus')) {
+      cleanMime = 'audio/ogg';
+      ext = 'ogg';
+    } else if (cleanMime.includes('mp3') || cleanMime.includes('mpeg')) {
+      cleanMime = 'audio/mp3';
+      ext = 'mp3';
+    } else if (cleanMime.includes('wav')) {
+      cleanMime = 'audio/wav';
+      ext = 'wav';
+    } else if (cleanMime.includes('aac') || cleanMime.includes('m4a')) {
+      cleanMime = 'audio/aac';
+      ext = 'm4a';
+    } else {
+      cleanMime = 'audio/wav';
+      ext = 'wav';
+    }
+
+    const arrayBuffer = await file.arrayBuffer();
+    const cleanBlob = new Blob([arrayBuffer], { type: cleanMime });
+    const fileName = `audio.${ext}`;
+
     const sarvamFormData = new FormData();
-    sarvamFormData.append('file', file, fileName);
+    sarvamFormData.append('file', cleanBlob, fileName);
     sarvamFormData.append('model', model);
     if (languageCode) {
       sarvamFormData.append('language_code', languageCode);

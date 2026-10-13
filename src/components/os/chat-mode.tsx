@@ -312,8 +312,8 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession }: ChatModeProps)
 
         recorder.onstop = async () => {
           stopBarAudioAnalysis();
-          const blobType = recorder.mimeType || 'audio/webm';
-          const audioBlob = new Blob(audioChunksRef.current, { type: blobType });
+          const cleanType = (recorder.mimeType || 'audio/webm').split(';')[0].trim();
+          const audioBlob = new Blob(audioChunksRef.current, { type: cleanType });
 
           if (audioBlob.size > 150) {
             setIsTranscribing(true);

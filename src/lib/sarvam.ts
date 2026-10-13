@@ -68,15 +68,19 @@ export async function transcribeSarvamAudio(
   options: { model?: string; languageCode?: string; apiKey?: string } = {}
 ): Promise<string> {
   const apiKey = options.apiKey || getStoredSarvamApiKey();
-  const mime = audioBlob.type || '';
+  const rawMime = audioBlob.type || '';
+  const cleanMime = rawMime.split(';')[0].trim().toLowerCase() || 'audio/wav';
   let filename = 'speech.wav';
-  if (mime.includes('webm')) filename = 'speech.webm';
-  else if (mime.includes('ogg')) filename = 'speech.ogg';
-  else if (mime.includes('mp4') || mime.includes('m4a')) filename = 'speech.m4a';
-  else if (mime.includes('mp3') || mime.includes('mpeg')) filename = 'speech.mp3';
+  if (cleanMime.includes('webm')) filename = 'speech.webm';
+  else if (cleanMime.includes('ogg') || cleanMime.includes('opus')) filename = 'speech.ogg';
+  else if (cleanMime.includes('mp4') || cleanMime.includes('m4a')) filename = 'speech.m4a';
+  else if (cleanMime.includes('mp3') || cleanMime.includes('mpeg')) filename = 'speech.mp3';
+
+  // Ensure clean blob without parameter extensions
+  const cleanBlob = audioBlob.slice(0, audioBlob.size, cleanMime);
 
   const formData = new FormData();
-  formData.append('file', audioBlob, filename);
+  formData.append('file', cleanBlob, filename);
   if (options.model) formData.append('model', options.model);
   if (options.languageCode) formData.append('language_code', options.languageCode);
   if (apiKey) formData.append('apiKey', apiKey);

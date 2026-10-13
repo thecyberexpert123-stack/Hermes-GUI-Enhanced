@@ -175,7 +175,8 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
 
         if (chunks.length === 0 || statusRef.current !== 'monitoring') return;
 
-        const clipBlob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
+        const cleanType = (recorder.mimeType || 'audio/webm').split(';')[0].trim();
+        const clipBlob = new Blob(chunks, { type: cleanType });
         if (clipBlob.size < 600) return;
 
         isVadProcessingRef.current = true;
@@ -942,8 +943,9 @@ export function useRealVoice(options: UseRealVoiceOptions = {}) {
             return;
           }
 
+          const cleanType = (recorder.mimeType || 'audio/webm').split(';')[0].trim();
           const recordedBlob = new Blob(chunks, {
-            type: recorder.mimeType || 'audio/webm',
+            type: cleanType,
           });
 
           if (recordedBlob.size < 600) {
